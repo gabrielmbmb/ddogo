@@ -47,6 +47,9 @@ homebrew_casks:
     ids:
       - ddogo
     skip_upload: auto
+    hooks:
+      post_install: |
+        xattr -d com.apple.quarantine "#{bin}/ddogo" 2>/dev/null || true
 
 changelog:
   use: git
