@@ -50,7 +50,7 @@ homebrew_casks:
     hooks:
       post:
         install: |
-          system_command "/bin/sh", args: ["-c", "xattr -d com.apple.quarantine '#{bin}/ddogo' 2>/dev/null || true"]
+          system_command "/bin/sh", args: ["-c", "xattr -d com.apple.quarantine '#{staged_path}/ddogo' 2>/dev/null || true"]
 
 changelog:
   use: git
