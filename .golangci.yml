@@ -1,0 +1,32 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      extra-rules: true
+      module-path: github.com/supersonik/ddogo
+    goimports:
+      local-prefixes:
+        - github.com/supersonik/ddogo
+
+linters:
+  default: standard
+  enable:
+    - staticcheck
+    - errcheck
+    - gosec
+    - revive
+    - misspell
+    - unparam
+  # golint was fully removed in golangci-lint v2; nothing to disable here.
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

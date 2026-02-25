@@ -1,0 +1,87 @@
+# ddogo
+
+Lightweight CLI for consuming Datadog logs from the command line.
+
+## Installation
+
+### Homebrew
+
+```bash
+brew tap gabrielmbmb/tap
+brew install ddogo
+```
+
+### Go
+
+```bash
+go install github.com/gabrielmbmb/ddogo/cmd/ddogo@latest
+```
+
+## Authentication
+
+ddogo requires a Datadog API key and application key. Set them via environment variables:
+
+```bash
+export DD_API_KEY=<your-api-key>
+export DD_APP_KEY=<your-app-key>
+```
+
+Or pass them as flags on every command:
+
+```bash
+ddogo --dd-api-key <key> --dd-app-key <key> logs search --query '...'
+```
+
+By default ddogo targets `datadoghq.com`. If you're on a different Datadog site, set:
+
+```bash
+export DD_SITE=datadoghq.eu  # or us3.datadoghq.com, etc.
+```
+
+## Commands
+
+### `logs search`
+
+Search logs within a time window.
+
+```
+ddogo logs search --query <query> [--from <time>] [--to <time>] [--limit <n>]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--query`, `-q` | Datadog log query (required) | — |
+| `--from` | Start time — RFC3339 or relative (e.g. `-15m`, `-1h`) | `-15m` |
+| `--to` | End time — RFC3339 or `now` | `now` |
+| `--limit` | Maximum number of logs to return | `100` |
+
+**Examples:**
+
+```bash
+# Errors from the last 15 minutes
+ddogo logs search --query 'service:api status:error'
+
+# Logs from the last hour, up to 500 results
+ddogo logs search --query 'env:prod' --from -1h --limit 500
+
+# Specific time range
+ddogo logs search --query 'service:worker' \
+  --from 2026-02-25T07:00:00Z \
+  --to 2026-02-25T08:00:00Z
+
+# Machine-readable output
+ddogo logs search --query 'status:error' --output json | jq '.[] | .message'
+```
+
+## Global flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--output`, `-o` | Output format: `pretty` or `json` | `pretty` |
+| `--dd-api-key` | Datadog API key | `$DD_API_KEY` |
+| `--dd-app-key` | Datadog application key | `$DD_APP_KEY` |
+| `--site` | Datadog site | `datadoghq.com` |
+
+## License
+
+[Apache 2.0](LICENSE)

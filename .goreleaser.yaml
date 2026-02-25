@@ -1,0 +1,50 @@
+project_name: ddogo
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: ddogo
+    main: ./cmd/ddogo
+    binary: ddogo
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/gabrielmbmb/ddogo/internal/version.Version={{.Version}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: ddogo
+    formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+
+brews:
+  - name: ddogo
+    repository:
+      owner: gabrielmbmb
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: update ddogo formula to {{ .Tag }}"
+    homepage: "https://github.com/gabrielmbmb/ddogo"
+    description: "Lightweight CLI for consuming Datadog logs."
+    license: "MIT"
+    # Only include darwin and linux builds in the formula (no Windows)
+    ids:
+      - ddogo
+    skip_upload: auto
+
+changelog:
+  use: git
