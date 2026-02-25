@@ -8,9 +8,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/supersonik/ddogo/internal/config"
-	"github.com/supersonik/ddogo/internal/datadog"
-	"github.com/supersonik/ddogo/internal/output"
+	"github.com/gabrielmbmb/ddogo/internal/config"
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
 // Logs returns the top-level "logs" command with its subcommands.

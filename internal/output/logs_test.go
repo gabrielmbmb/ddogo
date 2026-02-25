@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/supersonik/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestRenderPrettyEscapesMultilineMessages(t *testing.T) {

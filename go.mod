@@ -1,4 +1,4 @@
-module github.com/supersonik/ddogo
+module github.com/gabrielmbmb/ddogo
 
 go 1.23
 

@@ -4,7 +4,7 @@ package cli
 import (
 	"github.com/urfave/cli/v2"
 
-	"github.com/supersonik/ddogo/internal/cli/commands"
+	"github.com/gabrielmbmb/ddogo/internal/cli/commands"
 )
 
 // New constructs and returns the root ddogo CLI application.

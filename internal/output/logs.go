@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/supersonik/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 // RenderLogs writes logs to w in the requested format ("pretty" or "json").

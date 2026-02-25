@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/supersonik/ddogo/internal/cli"
-	"github.com/supersonik/ddogo/internal/version"
+	"github.com/gabrielmbmb/ddogo/internal/cli"
+	"github.com/gabrielmbmb/ddogo/internal/version"
 )
 
 func main() {
