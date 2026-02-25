@@ -7,7 +7,7 @@ Lightweight CLI for consuming Datadog logs from the command line.
 ### Homebrew
 
 ```bash
-brew tap gabrielmbmb/tap
+brew tap gabrielmbmb/homebrew-tap
 brew install ddogo
 ```
 
