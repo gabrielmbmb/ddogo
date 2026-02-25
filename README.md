@@ -19,26 +19,49 @@ go install github.com/gabrielmbmb/ddogo/cmd/ddogo@latest
 
 ## Authentication
 
-ddogo requires a Datadog API key and application key. Set them via environment variables:
+Recommended local setup is storing credentials in your OS secure keychain:
+
+```bash
+ddogo auth login
+```
+
+This saves credentials under the `default` profile and uses them automatically.
+
+You can still use environment variables (recommended for CI/non-interactive usage):
 
 ```bash
 export DD_API_KEY=<your-api-key>
 export DD_APP_KEY=<your-app-key>
+export DD_SITE=datadoghq.eu  # optional, defaults to datadoghq.com
 ```
 
-Or pass them as flags on every command:
+Or pass keys directly as flags:
 
 ```bash
 ddogo --dd-api-key <key> --dd-app-key <key> logs search --query '...'
 ```
 
-By default ddogo targets `datadoghq.com`. If you're on a different Datadog site, set:
+Auth precedence is: **flags > environment > secure store > defaults**.
+
+Useful auth commands:
 
 ```bash
-export DD_SITE=datadoghq.eu  # or us3.datadoghq.com, etc.
+ddogo auth status
+ddogo auth logout
+ddogo auth login --profile work
 ```
 
 ## Commands
+
+### `auth`
+
+Manage persisted credentials in the OS keychain.
+
+```bash
+ddogo auth login
+ddogo auth status
+ddogo auth logout
+```
 
 ### `logs search`
 
@@ -81,6 +104,7 @@ ddogo logs search --query 'status:error' --output json | jq '.[] | .message'
 | `--dd-api-key` | Datadog API key | `$DD_API_KEY` |
 | `--dd-app-key` | Datadog application key | `$DD_APP_KEY` |
 | `--site` | Datadog site | `datadoghq.com` |
+| `--profile` | Credential profile from secure store | `default` |
 
 ## License
 

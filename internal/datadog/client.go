@@ -54,10 +54,10 @@ type Client struct {
 // NewClient constructs a Client from the provided configuration.
 func NewClient(cfg ClientConfig) (*Client, error) {
 	if strings.TrimSpace(cfg.APIKey) == "" {
-		return nil, fmt.Errorf("dd-api-key is required (or DD_API_KEY env var)")
+		return nil, fmt.Errorf("dd-api-key is required (set --dd-api-key, DD_API_KEY, or run `ddogo auth login`)")
 	}
 	if strings.TrimSpace(cfg.AppKey) == "" {
-		return nil, fmt.Errorf("dd-app-key is required (or DD_APP_KEY env var)")
+		return nil, fmt.Errorf("dd-app-key is required (set --dd-app-key, DD_APP_KEY, or run `ddogo auth login`)")
 	}
 
 	baseURL := strings.TrimSpace(cfg.APIBaseURL)

@@ -32,12 +32,18 @@ func New(version string) *cli.App {
 			},
 			&cli.StringFlag{
 				Name:    "site",
-				Usage:   "Datadog site (for example: datadoghq.com)",
+				Usage:   "Datadog site (for example: datadoghq.com). Defaults to datadoghq.com",
 				EnvVars: []string{"DD_SITE"},
-				Value:   "datadoghq.com",
+			},
+			&cli.StringFlag{
+				Name:    "profile",
+				Usage:   "Credential profile to use from secure store",
+				EnvVars: []string{"DDOGO_PROFILE"},
+				Value:   "default",
 			},
 		},
 		Commands: []*cli.Command{
+			commands.Auth(),
 			commands.Logs(),
 		},
 	}
