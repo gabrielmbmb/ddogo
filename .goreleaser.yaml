@@ -1,3 +1,5 @@
+version: 2
+
 project_name: ddogo
 
 before:
@@ -28,7 +30,7 @@ archives:
       - goos: windows
         formats: ["zip"]
 
-brews:
+homebrew_casks:
   - name: ddogo
     repository:
       owner: gabrielmbmb
@@ -41,7 +43,7 @@ brews:
     homepage: "https://github.com/gabrielmbmb/ddogo"
     description: "Lightweight CLI for consuming Datadog logs."
     license: "MIT"
-    # Only include darwin and linux builds in the formula (no Windows)
+    # Only include darwin and linux builds in the cask (no Windows)
     ids:
       - ddogo
     skip_upload: auto
