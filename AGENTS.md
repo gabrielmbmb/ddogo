@@ -131,6 +131,7 @@ When adding new domains:
 ## Collaboration notes for agents
 
 - Prefer iterative, reviewable changes.
+- After modifying code or tests, always run the test suite (`go test ./...`) before reporting completion or committing.
 - State assumptions explicitly in PR/commit notes.
 - If requirements are ambiguous, ask targeted questions before large refactors.
 - Do not silently change UX/flags/output contracts.
