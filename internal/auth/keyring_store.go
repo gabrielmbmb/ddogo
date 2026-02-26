@@ -33,11 +33,7 @@ func keyringUser(profile string) string {
 // Save stores credentials for the given profile.
 func (s *KeyringStore) Save(profile string, creds Credentials) error {
 	normalized := creds.Normalize()
-	payload, err := json.Marshal(keyringPayload{
-		APIKey: normalized.APIKey,
-		AppKey: normalized.AppKey,
-		Site:   normalized.Site,
-	})
+	payload, err := json.Marshal(keyringPayload(normalized))
 	if err != nil {
 		return fmt.Errorf("marshal credentials: %w", err)
 	}
@@ -63,11 +59,7 @@ func (s *KeyringStore) Load(profile string) (Credentials, error) {
 		return Credentials{}, fmt.Errorf("invalid stored credentials for profile %q: %w", NormalizeProfile(profile), err)
 	}
 
-	return Credentials{
-		APIKey: payload.APIKey,
-		AppKey: payload.AppKey,
-		Site:   payload.Site,
-	}.Normalize(), nil
+	return Credentials(payload).Normalize(), nil
 }
 
 // Delete removes credentials for the given profile.

@@ -110,7 +110,9 @@ func authLogin() *cli.Command {
 				return err
 			}
 
-			fmt.Fprintf(c.App.Writer, "saved Datadog credentials for profile %q (site: %s)\n", profile, creds.Site)
+			if err := writef(c.App.Writer, "saved Datadog credentials for profile %q (site: %s)\n", profile, creds.Site); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -129,7 +131,7 @@ func authStatus() *cli.Command {
 			profile := auth.NormalizeProfile(c.String("profile"))
 			store := auth.NewKeyringStore()
 
-			stored := auth.Credentials{}
+			var stored auth.Credentials
 			storeAvailable := true
 			storeHasCreds := false
 
@@ -181,22 +183,34 @@ func authStatus() *cli.Command {
 				return enc.Encode(status)
 			}
 
-			fmt.Fprintf(c.App.Writer, "Profile: %s\n", status.Profile)
-			fmt.Fprintf(c.App.Writer, "Environment: DD_API_KEY=%s DD_APP_KEY=%s DD_SITE=%s\n",
+			if err := writef(c.App.Writer, "Profile: %s\n", status.Profile); err != nil {
+				return err
+			}
+			if err := writef(c.App.Writer, "Environment: DD_API_KEY=%s DD_APP_KEY=%s DD_SITE=%s\n",
 				setString(status.Environment.APIKeySet),
 				setString(status.Environment.AppKeySet),
 				setString(status.Environment.SiteSet),
-			)
-			fmt.Fprintf(c.App.Writer, "Secure store: available=%s credentials=%s", yesNo(status.Store.Available), yesNo(status.Store.HasCredentials))
-			if status.Store.Site != "" {
-				fmt.Fprintf(c.App.Writer, " site=%s", status.Store.Site)
+			); err != nil {
+				return err
 			}
-			fmt.Fprintln(c.App.Writer)
-			fmt.Fprintf(c.App.Writer, "Effective: api_key=%s (%s), app_key=%s (%s), site=%s (%s)\n",
+			if err := writef(c.App.Writer, "Secure store: available=%s credentials=%s", yesNo(status.Store.Available), yesNo(status.Store.HasCredentials)); err != nil {
+				return err
+			}
+			if status.Store.Site != "" {
+				if err := writef(c.App.Writer, " site=%s", status.Store.Site); err != nil {
+					return err
+				}
+			}
+			if err := writeln(c.App.Writer); err != nil {
+				return err
+			}
+			if err := writef(c.App.Writer, "Effective: api_key=%s (%s), app_key=%s (%s), site=%s (%s)\n",
 				setString(status.Effective.APIKeySet), status.Effective.APIKeyFrom,
 				setString(status.Effective.AppKeySet), status.Effective.AppKeyFrom,
 				status.Effective.Site, status.Effective.SiteFrom,
-			)
+			); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -212,7 +226,9 @@ func authLogout() *cli.Command {
 
 			err := store.Delete(profile)
 			if errors.Is(err, auth.ErrNotFound) {
-				fmt.Fprintf(c.App.Writer, "no stored credentials found for profile %q\n", profile)
+				if err := writef(c.App.Writer, "no stored credentials found for profile %q\n", profile); err != nil {
+					return err
+				}
 				return nil
 			}
 			if err != nil {
@@ -222,7 +238,9 @@ func authLogout() *cli.Command {
 				return err
 			}
 
-			fmt.Fprintf(c.App.Writer, "deleted stored credentials for profile %q\n", profile)
+			if err := writef(c.App.Writer, "deleted stored credentials for profile %q\n", profile); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -254,6 +272,16 @@ type effectiveStatus struct {
 	APIKeyFrom string `json:"api_key_from"`
 	AppKeyFrom string `json:"app_key_from"`
 	SiteFrom   string `json:"site_from"`
+}
+
+func writef(w io.Writer, format string, args ...any) error {
+	_, err := fmt.Fprintf(w, format, args...)
+	return err
+}
+
+func writeln(w io.Writer) error {
+	_, err := fmt.Fprintln(w)
+	return err
 }
 
 func firstNonEmpty(values ...string) string {
