@@ -41,8 +41,8 @@ homebrew_casks:
       email: bot@goreleaser.com
     commit_msg_template: "chore: update ddogo formula to {{ .Tag }}"
     homepage: "https://github.com/gabrielmbmb/ddogo"
-    description: "Lightweight CLI for consuming Datadog logs."
-    license: "MIT"
+    description: "Lightweight CLI for consuming Datadog logs and spans."
+    license: "Apache-2.0"
     # Only include darwin and linux builds in the cask (no Windows)
     ids:
       - ddogo
