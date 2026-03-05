@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestLogsClientSearchSinglePage(t *testing.T) {
+func TestSpansClientSearchSinglePage(t *testing.T) {
 	t.Parallel()
 
 	var calls int
@@ -18,8 +18,8 @@ func TestLogsClientSearchSinglePage(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", r.Method)
 		}
-		if r.URL.Path != logsSearchEndpoint {
-			t.Fatalf("expected path %s, got %s", logsSearchEndpoint, r.URL.Path)
+		if r.URL.Path != spansSearchEndpoint {
+			t.Fatalf("expected path %s, got %s", spansSearchEndpoint, r.URL.Path)
 		}
 		if got := r.Header.Get("DD-API-KEY"); got != "api-key" {
 			t.Fatalf("missing DD-API-KEY header, got %q", got)
@@ -28,40 +28,54 @@ func TestLogsClientSearchSinglePage(t *testing.T) {
 			t.Fatalf("missing DD-APPLICATION-KEY header, got %q", got)
 		}
 
-		var req logsListRequest
+		var req spansListRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
-		if req.Filter.Query != "service:api" {
-			t.Fatalf("expected query service:api, got %q", req.Filter.Query)
+		if req.Data == nil || req.Data.Attributes == nil || req.Data.Attributes.Filter == nil || req.Data.Attributes.Page == nil {
+			t.Fatalf("missing request data/attributes/filter/page: %#v", req)
 		}
-		if req.Page.Limit != 5 {
-			t.Fatalf("expected page limit 5, got %d", req.Page.Limit)
+		if req.Data.Type != "search_request" {
+			t.Fatalf("expected type search_request, got %q", req.Data.Type)
 		}
-		if req.Sort != "timestamp" {
-			t.Fatalf("expected default sort timestamp, got %q", req.Sort)
+		if req.Data.Attributes.Filter.Query != "service:api" {
+			t.Fatalf("expected query service:api, got %q", req.Data.Attributes.Filter.Query)
+		}
+		if req.Data.Attributes.Page.Limit != 5 {
+			t.Fatalf("expected page limit 5, got %d", req.Data.Attributes.Page.Limit)
+		}
+		if req.Data.Attributes.Sort != "timestamp" {
+			t.Fatalf("expected default sort timestamp, got %q", req.Data.Attributes.Sort)
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]any{
 				{
-					"id": "log-1",
+					"id": "span-1",
 					"attributes": map[string]any{
-						"timestamp": "2026-02-25T08:00:00Z",
-						"message":   "boom",
-						"host":      "i-123",
-						"service":   "api",
-						"status":    "error",
-						"tags":      []string{"env:prod"},
-						"attributes": map[string]any{
-							"duration": 42,
-						},
+						"start_timestamp":  "2026-02-25T08:00:00.000Z",
+						"end_timestamp":    "2026-02-25T08:00:00.125Z",
+						"service":          "api",
+						"resource_name":    "GET /users",
+						"resource_hash":    "abc123",
+						"trace_id":         "trace-1",
+						"span_id":          "span-id-1",
+						"parent_id":        "parent-1",
+						"env":              "prod",
+						"host":             "host-1",
+						"type":             "web",
+						"tags":             []string{"env:prod"},
+						"attributes":       map[string]any{"duration": 125},
+						"custom":           map[string]any{"foo": "bar"},
+						"ingestion_reason": "rule",
+						"retained_by":      "retention_filter",
+						"single_span":      true,
 					},
 				},
 			},
 			"meta": map[string]any{
 				"status":     "done",
-				"request_id": "req-logs-1",
+				"request_id": "req-1",
 				"page":       map[string]any{},
 				"warnings": []map[string]any{
 					{"code": "unknown_index", "title": "Unknown index", "detail": "indexes: foo"},
@@ -83,7 +97,7 @@ func TestLogsClientSearchSinglePage(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Logs().Search(context.Background(), SearchLogsRequest{
+	resp, err := client.Spans().Search(context.Background(), SearchSpansRequest{
 		Query: "service:api",
 		From:  "2026-02-25T07:55:00Z",
 		To:    "2026-02-25T08:00:00Z",
@@ -95,59 +109,56 @@ func TestLogsClientSearchSinglePage(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("expected 1 request, got %d", calls)
 	}
-	if result.Status != "done" {
-		t.Fatalf("expected status done, got %q", result.Status)
+	if resp.Status != "done" {
+		t.Fatalf("expected status done, got %q", resp.Status)
 	}
-	if result.RequestID != "req-logs-1" {
-		t.Fatalf("expected request_id req-logs-1, got %q", result.RequestID)
+	if resp.RequestID != "req-1" {
+		t.Fatalf("expected request_id req-1, got %q", resp.RequestID)
 	}
-	if len(result.Warnings) != 1 || result.Warnings[0].Code != "unknown_index" {
-		t.Fatalf("unexpected warnings: %#v", result.Warnings)
+	if len(resp.Warnings) != 1 || resp.Warnings[0].Code != "unknown_index" {
+		t.Fatalf("unexpected warnings: %#v", resp.Warnings)
 	}
-	if len(result.Logs) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(result.Logs))
+	if len(resp.Spans) != 1 {
+		t.Fatalf("expected 1 span entry, got %d", len(resp.Spans))
 	}
-	if result.Logs[0].ID != "log-1" {
-		t.Fatalf("expected id log-1, got %q", result.Logs[0].ID)
+	if resp.Spans[0].ID != "span-1" {
+		t.Fatalf("expected id span-1, got %q", resp.Spans[0].ID)
 	}
-	if result.Logs[0].Message != "boom" {
-		t.Fatalf("expected message boom, got %q", result.Logs[0].Message)
+	if resp.Spans[0].SpanType != "web" {
+		t.Fatalf("expected type web, got %q", resp.Spans[0].SpanType)
 	}
-	if result.Logs[0].Timestamp != "2026-02-25T08:00:00Z" {
-		t.Fatalf("expected timestamp 2026-02-25T08:00:00Z, got %q", result.Logs[0].Timestamp)
-	}
-	if got := result.Logs[0].Attributes["host"]; got != "i-123" {
-		t.Fatalf("expected host i-123 in attributes, got %#v", got)
+	if resp.Spans[0].DurationMS == nil || *resp.Spans[0].DurationMS != 125 {
+		t.Fatalf("expected duration 125ms, got %#v", resp.Spans[0].DurationMS)
 	}
 }
 
-func TestLogsClientSearchPaginates(t *testing.T) {
+func TestSpansClientSearchPaginates(t *testing.T) {
 	t.Parallel()
 
 	var calls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 
-		var req logsListRequest
+		var req spansListRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
 
 		switch calls {
 		case 1:
-			if req.Page.Cursor != "" {
-				t.Fatalf("expected empty cursor on first request, got %q", req.Page.Cursor)
+			if req.Data.Attributes.Page.Cursor != "" {
+				t.Fatalf("expected empty cursor on first request, got %q", req.Data.Attributes.Page.Cursor)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": []map[string]any{{"attributes": map[string]any{"timestamp": "2026-02-25T08:00:00Z", "message": "first"}}},
+				"data": []map[string]any{{"attributes": map[string]any{"start_timestamp": "2026-02-25T08:00:00Z", "end_timestamp": "2026-02-25T08:00:00Z", "service": "first"}}},
 				"meta": map[string]any{"page": map[string]any{"after": "cursor-1"}},
 			})
 		case 2:
-			if req.Page.Cursor != "cursor-1" {
-				t.Fatalf("expected cursor cursor-1 on second request, got %q", req.Page.Cursor)
+			if req.Data.Attributes.Page.Cursor != "cursor-1" {
+				t.Fatalf("expected cursor cursor-1 on second request, got %q", req.Data.Attributes.Page.Cursor)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": []map[string]any{{"attributes": map[string]any{"timestamp": "2026-02-25T08:01:00Z", "message": "second"}}},
+				"data": []map[string]any{{"attributes": map[string]any{"start_timestamp": "2026-02-25T08:01:00Z", "end_timestamp": "2026-02-25T08:01:01Z", "service": "second"}}},
 				"meta": map[string]any{"page": map[string]any{}},
 			})
 		default:
@@ -168,7 +179,7 @@ func TestLogsClientSearchPaginates(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Logs().Search(context.Background(), SearchLogsRequest{
+	resp, err := client.Spans().Search(context.Background(), SearchSpansRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -180,15 +191,15 @@ func TestLogsClientSearchPaginates(t *testing.T) {
 	if calls != 2 {
 		t.Fatalf("expected 2 requests, got %d", calls)
 	}
-	if len(result.Logs) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(result.Logs))
+	if len(resp.Spans) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(resp.Spans))
 	}
-	if result.Logs[0].Message != "first" || result.Logs[1].Message != "second" {
-		t.Fatalf("unexpected messages: %#v", result.Logs)
+	if resp.Spans[0].Service != "first" || resp.Spans[1].Service != "second" {
+		t.Fatalf("unexpected services: %#v", resp.Spans)
 	}
 }
 
-func TestLogsClientSearchRetriesOn429(t *testing.T) {
+func TestSpansClientSearchRetriesOn429(t *testing.T) {
 	t.Parallel()
 
 	var calls int
@@ -201,7 +212,7 @@ func TestLogsClientSearchRetriesOn429(t *testing.T) {
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"data": []map[string]any{{"attributes": map[string]any{"timestamp": "2026-02-25T08:00:00Z", "message": "ok"}}},
+			"data": []map[string]any{{"attributes": map[string]any{"start_timestamp": "2026-02-25T08:00:00Z", "end_timestamp": "2026-02-25T08:00:00Z", "service": "ok"}}},
 			"meta": map[string]any{"page": map[string]any{}},
 		})
 	}))
@@ -219,7 +230,7 @@ func TestLogsClientSearchRetriesOn429(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Logs().Search(context.Background(), SearchLogsRequest{
+	resp, err := client.Spans().Search(context.Background(), SearchSpansRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -231,35 +242,21 @@ func TestLogsClientSearchRetriesOn429(t *testing.T) {
 	if calls != 2 {
 		t.Fatalf("expected 2 requests, got %d", calls)
 	}
-	if len(result.Logs) != 1 || result.Logs[0].Message != "ok" {
-		t.Fatalf("unexpected entries: %#v", result.Logs)
+	if len(resp.Spans) != 1 || resp.Spans[0].Service != "ok" {
+		t.Fatalf("unexpected entries: %#v", resp.Spans)
 	}
 }
 
-func TestLogsClientSearchRejectsBlankFromTo(t *testing.T) {
-	t.Parallel()
-
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
-	if err != nil {
-		t.Fatalf("unexpected NewClient error: %v", err)
-	}
-
-	_, err = client.Logs().Search(context.Background(), SearchLogsRequest{Query: "*", From: "   ", To: "\t", Limit: 1})
-	if err == nil {
-		t.Fatal("expected error for blank from/to")
-	}
-}
-
-func TestLogsClientSearchUsesProvidedSort(t *testing.T) {
+func TestSpansClientSearchUsesProvidedSort(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req logsListRequest
+		var req spansListRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
-		if req.Sort != "-timestamp" {
-			t.Fatalf("expected sort -timestamp, got %q", req.Sort)
+		if req.Data.Attributes.Sort != "-timestamp" {
+			t.Fatalf("expected sort -timestamp, got %q", req.Data.Attributes.Sort)
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -281,7 +278,7 @@ func TestLogsClientSearchUsesProvidedSort(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Logs().Search(context.Background(), SearchLogsRequest{
+	_, err = client.Spans().Search(context.Background(), SearchSpansRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -290,5 +287,21 @@ func TestLogsClientSearchUsesProvidedSort(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("unexpected Search error: %v", err)
+	}
+}
+
+func TestSpanDurationMS(t *testing.T) {
+	t.Parallel()
+
+	d := spanDurationMS("2026-02-25T08:00:00.000Z", "2026-02-25T08:00:01.250Z")
+	if d == nil || *d != 1250 {
+		t.Fatalf("expected 1250ms, got %#v", d)
+	}
+
+	if got := spanDurationMS("", "2026-02-25T08:00:01.250Z"); got != nil {
+		t.Fatalf("expected nil for empty start, got %#v", got)
+	}
+	if got := spanDurationMS("bad", "2026-02-25T08:00:01.250Z"); got != nil {
+		t.Fatalf("expected nil for invalid start, got %#v", got)
 	}
 }

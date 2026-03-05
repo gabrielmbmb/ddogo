@@ -1,6 +1,6 @@
 # ddogo
 
-Lightweight CLI for consuming Datadog logs from the command line.
+Lightweight CLI for consuming Datadog logs and spans from the command line.
 
 ## Installation
 
@@ -95,6 +95,61 @@ ddogo logs search --query 'service:worker' \
 # Machine-readable output
 ddogo logs search --query 'status:error' --output json | jq '.[] | .message'
 ```
+
+Datadog logs query warnings/timeouts are printed to `stderr` while logs results remain on `stdout`.
+
+### `spans search`
+
+Search spans within a time window.
+
+```
+ddogo spans search --query <query> [--from <time>] [--to <time>] [--limit <n>]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--query`, `-q` | Datadog span query (required) | — |
+| `--from` | Start time — RFC3339 or relative (e.g. `-15m`, `-1h`) | `-15m` |
+| `--to` | End time — RFC3339 or `now` | `now` |
+| `--limit` | Maximum number of spans to return | `100` |
+| `--with-logs` | Fetch correlated logs for each returned span | `false` |
+| `--logs-query` | Additional Datadog log filter used with `--with-logs` | — |
+| `--logs-from` | Correlated logs start time; defaults to `--from` | inherited |
+| `--logs-to` | Correlated logs end time; defaults to `--to` | inherited |
+| `--logs-limit` | Correlated logs max results per span | `20` |
+| `--logs-rate-limit-mode` | 429 handling for correlated logs: `skip` or `wait` | `skip` |
+| `--logs-rate-limit-wait` | Wait duration between retries when mode is `wait` | `30s` |
+| `--logs-rate-limit-max-waits` | Max wait+retry cycles on 429 when mode is `wait` | `3` |
+
+**Examples:**
+
+```bash
+# Spans from the last 15 minutes
+ddogo spans search --query 'service:api'
+
+# Spans with machine-readable output
+ddogo spans search --query 'env:prod' --from -1h --output json | jq '.[0]'
+
+# Fetch logs correlated to each span (same query naming style as logs)
+ddogo spans search --query 'service:api' --with-logs \
+  --logs-query 'status:error' \
+  --logs-from -30m \
+  --logs-to now \
+  --logs-limit 10
+
+# On 429s, wait and retry instead of skipping remaining spans
+ddogo spans search --query 'service:api' --with-logs \
+  --logs-rate-limit-mode wait \
+  --logs-rate-limit-wait 45s \
+  --logs-rate-limit-max-waits 5
+```
+
+**429 handling when using `--with-logs`:**
+
+- `--logs-rate-limit-mode skip` (default): after a 429, skip log enrichment for remaining not-yet-processed spans and continue returning spans.
+- `--logs-rate-limit-mode wait`: on 429, wait `--logs-rate-limit-wait` and retry up to `--logs-rate-limit-max-waits` times.
+
+In both modes, spans are still returned. Per-span enrichment failures are exposed in `logs_error` (JSON output) and warnings are printed to `stderr`.
 
 ## Global flags
 

@@ -4,13 +4,14 @@ Agent instructions for this repository.
 
 ## Project overview
 
-`ddogo` is a lightweight, modern CLI focused on consuming logs from Datadog via the Logs Search API.
+`ddogo` is a lightweight, modern CLI focused on consuming observability data from Datadog APIs.
 
-Primary near-term goal:
+Primary near-term goals:
 - Reliable, ergonomic log consumption from Datadog Logs Search API.
+- Reliable, ergonomic span consumption from Datadog Spans Search API.
 
 Probable future scope:
-- Additional Datadog observability surfaces (e.g., traces, APM, metrics, events) while keeping the CLI cohesive and minimal.
+- Additional Datadog observability surfaces (e.g., traces, APM analytics, metrics, events) while keeping the CLI cohesive and minimal.
 
 ## Product principles
 
@@ -90,6 +91,31 @@ Current out-of-scope endpoints (unless explicitly adding new commands):
 - Log analytics aggregate: `POST /api/v2/logs/analytics/aggregate`
 
 Retry/error handling policy for search:
+- Retry with backoff on transient failures (`429`, `408`, `5xx`, and transport timeouts).
+- Do not retry client/auth errors (`400`, `401`, `403`) without user action.
+
+## Datadog Spans endpoints in scope
+
+Primary endpoints for `ddogo` (span consumption):
+
+1. **POST `/api/v2/spans/events/search`** (preferred)
+   - Main endpoint for `spans search`.
+   - Supports rich filters (`query`, `from`, `to`), sort (`timestamp`, `-timestamp`), and cursor pagination (`page.limit`, `page.cursor`).
+   - Use `meta.page.after` for incremental pagination.
+
+2. **GET `/api/v2/spans/events`** (optional companion)
+   - Query-string variant of v2 search.
+   - Useful for simple requests and compatibility with `links.next` URL pagination.
+
+Authentication/permissions for spans search endpoints:
+- Require both `DD_API_KEY` and `DD_APP_KEY`.
+- Require Datadog permission/scope: `apm_read`.
+
+Current out-of-scope spans endpoint (unless explicitly adding new commands):
+- Spans analytics aggregate: `POST /api/v2/spans/analytics/aggregate`
+
+Spans search rate limits and retry/error handling:
+- Search/list endpoints are rate limited (typically `300` requests/hour); avoid aggressive polling.
 - Retry with backoff on transient failures (`429`, `408`, `5xx`, and transport timeouts).
 - Do not retry client/auth errors (`400`, `401`, `403`) without user action.
 

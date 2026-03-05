@@ -107,6 +107,11 @@ func (c *Client) Logs() LogsClient {
 	return &logsClient{client: c}
 }
 
+// Spans returns the spans domain client.
+func (c *Client) Spans() SpansClient {
+	return &spansClient{client: c}
+}
+
 func apiBaseURLForSite(site string) (string, error) {
 	s := strings.TrimSpace(site)
 	if s == "" {

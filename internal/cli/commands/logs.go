@@ -63,27 +63,16 @@ func logsSearch() *cli.Command {
 			}
 
 			now := time.Now().UTC()
-			from, err := parseTimeInput(c.String("from"), now)
-			if err != nil {
-				return fmt.Errorf("invalid --from: %w", err)
-			}
-			to, err := parseTimeInput(c.String("to"), now)
-			if err != nil {
-				return fmt.Errorf("invalid --to: %w", err)
-			}
-			if to.Before(from) {
-				return fmt.Errorf("--to must be >= --from")
-			}
-
-			ddClient, err := datadog.NewClient(datadog.ClientConfig{
-				APIKey: cfg.DDAPIKey,
-				AppKey: cfg.DDAppKey,
-				Site:   cfg.Site,
-			})
+			from, to, err := parseWindow(now, c.String("from"), c.String("to"), "from", "to")
 			if err != nil {
 				return err
 			}
-			entries, err := ddClient.Logs().Search(c.Context, datadog.SearchLogsRequest{
+
+			ddClient, err := newDatadogClient(cfg)
+			if err != nil {
+				return err
+			}
+			result, err := ddClient.Logs().Search(c.Context, datadog.SearchLogsRequest{
 				Query: c.String("query"),
 				From:  from.Format(time.RFC3339),
 				To:    to.Format(time.RFC3339),
@@ -93,21 +82,11 @@ func logsSearch() *cli.Command {
 				return err
 			}
 
-			return output.RenderLogs(os.Stdout, cfg.Output, entries)
+			for _, warning := range datadog.FormatSearchWarnings("logs", result.Status, result.Warnings) {
+				_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+			}
+
+			return output.RenderLogs(os.Stdout, cfg.Output, result.Logs)
 		},
 	}
-}
-
-func parseTimeInput(v string, now time.Time) (time.Time, error) {
-	if v == "now" {
-		return now, nil
-	}
-	if len(v) > 0 && v[0] == '-' {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return time.Time{}, err
-		}
-		return now.Add(d), nil
-	}
-	return time.Parse(time.RFC3339, v)
 }

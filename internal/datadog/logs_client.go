@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -30,28 +31,36 @@ type LogEntry struct {
 	Attributes map[string]any `json:"attributes,omitempty"`
 }
 
+// LogsSearchResult contains logs and response metadata from a search request.
+type LogsSearchResult struct {
+	Logs      []LogEntry   `json:"logs"`
+	Status    string       `json:"status,omitempty"`
+	RequestID string       `json:"request_id,omitempty"`
+	Warnings  []APIWarning `json:"warnings,omitempty"`
+}
+
 // LogsClient exposes log-search operations against the Datadog Logs API.
 type LogsClient interface {
-	Search(ctx context.Context, req SearchLogsRequest) ([]LogEntry, error)
+	Search(ctx context.Context, req SearchLogsRequest) (LogsSearchResult, error)
 }
 
 type logsClient struct {
 	client *Client
 }
 
-func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) ([]LogEntry, error) {
+func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) (LogsSearchResult, error) {
 	if req.Limit <= 0 {
-		return nil, fmt.Errorf("limit must be > 0")
+		return LogsSearchResult{}, fmt.Errorf("limit must be > 0")
 	}
-	if req.From == "" || req.To == "" {
-		return nil, fmt.Errorf("from and to are required")
+	if strings.TrimSpace(req.From) == "" || strings.TrimSpace(req.To) == "" {
+		return LogsSearchResult{}, fmt.Errorf("from and to are required")
 	}
 
 	cursor := ""
-	result := make([]LogEntry, 0, req.Limit)
+	result := LogsSearchResult{Logs: make([]LogEntry, 0, req.Limit)}
 
-	for len(result) < req.Limit {
-		remaining := req.Limit - len(result)
+	for len(result.Logs) < req.Limit {
+		remaining := req.Limit - len(result.Logs)
 		pageLimit := remaining
 		if pageLimit > maxLogsPageSize {
 			pageLimit = maxLogsPageSize
@@ -86,7 +95,16 @@ func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) ([]LogEn
 
 		var resp logsListResponse
 		if err := c.client.doJSON(ctx, http.MethodPost, logsSearchEndpoint, body, &resp); err != nil {
-			return nil, err
+			return LogsSearchResult{}, err
+		}
+		if resp.Meta.Status != "" {
+			result.Status = resp.Meta.Status
+		}
+		if resp.Meta.RequestID != "" {
+			result.RequestID = resp.Meta.RequestID
+		}
+		if len(resp.Meta.Warnings) > 0 {
+			result.Warnings = append(result.Warnings, resp.Meta.Warnings...)
 		}
 
 		for _, item := range resp.Data {
@@ -116,8 +134,8 @@ func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) ([]LogEn
 				entry.Attributes = attrs
 			}
 
-			result = append(result, entry)
-			if len(result) >= req.Limit {
+			result.Logs = append(result.Logs, entry)
+			if len(result.Logs) >= req.Limit {
 				return result, nil
 			}
 		}
@@ -157,6 +175,9 @@ type logsListResponse struct {
 		Page struct {
 			After string `json:"after"`
 		} `json:"page"`
+		RequestID string       `json:"request_id"`
+		Status    string       `json:"status"`
+		Warnings  []APIWarning `json:"warnings"`
 	} `json:"meta"`
 }
 
