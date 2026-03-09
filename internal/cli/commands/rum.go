@@ -1,4 +1,3 @@
-// Package commands contains urfave/cli command definitions for ddogo.
 package commands
 
 import (
@@ -13,28 +12,27 @@ import (
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
-// Logs returns the top-level "logs" command with its subcommands.
-func Logs() *cli.Command {
+// RUM returns the top-level "rum" command with its subcommands.
+func RUM() *cli.Command {
 	return &cli.Command{
-		Name:    "logs",
-		Aliases: []string{"log"},
-		Usage:   "Search Datadog logs",
+		Name:  "rum",
+		Usage: "Search Datadog RUM events",
 		Subcommands: []*cli.Command{
-			logsSearch(),
+			rumSearch(),
 		},
 	}
 }
 
-func logsSearch() *cli.Command {
+func rumSearch() *cli.Command {
 	return &cli.Command{
 		Name:        "search",
-		Usage:       "Search logs in a time window",
-		Description: "Examples:\n  ddogo logs search --query 'service:api status:error' --from -15m\n  ddogo logs search --query 'env:prod' --from 2026-02-25T07:00:00Z --to 2026-02-25T08:00:00Z --output json",
+		Usage:       "Search RUM events in a time window",
+		Description: "Examples:\n  ddogo rum search --query '@type:error service:web' --from -15m\n  ddogo rum search --query '@issue.id:cffd9eda-7cd6-11f0-b673-da7ad0900005' --from -168h --limit 50 --output json",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "query",
 				Aliases:  []string{"q"},
-				Usage:    "Datadog log query",
+				Usage:    "Datadog RUM query",
 				Required: true,
 			},
 			&cli.StringFlag{
@@ -49,7 +47,7 @@ func logsSearch() *cli.Command {
 			},
 			&cli.IntFlag{
 				Name:  "limit",
-				Usage: "Maximum number of logs to return",
+				Usage: "Maximum number of RUM events to return",
 				Value: 100,
 			},
 		},
@@ -73,7 +71,8 @@ func logsSearch() *cli.Command {
 			if err != nil {
 				return err
 			}
-			result, err := ddClient.Logs().Search(c.Context, datadog.SearchLogsRequest{
+
+			result, err := ddClient.RUM().Search(c.Context, datadog.SearchRUMEventsRequest{
 				Query: c.String("query"),
 				From:  from.Format(time.RFC3339),
 				To:    to.Format(time.RFC3339),
@@ -83,11 +82,11 @@ func logsSearch() *cli.Command {
 				return err
 			}
 
-			for _, warning := range datadog.FormatSearchWarnings("logs", result.Status, result.Warnings) {
+			for _, warning := range datadog.FormatSearchWarnings("rum", result.Status, result.Warnings) {
 				_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
 			}
 
-			return output.RenderLogs(os.Stdout, cfg.Output, result.Logs)
+			return output.RenderRUMEvents(os.Stdout, cfg.Output, result.Events)
 		},
 	}
 }

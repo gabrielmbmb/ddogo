@@ -27,8 +27,8 @@ const (
 // This is intentionally shared/generic so additional Datadog API domains
 // (APM, traces, metrics, events) can be added on top of the same transport.
 type ClientConfig struct {
-	APIKey string
-	AppKey string
+	APIKey string //nolint:gosec // Contains credential material by design.
+	AppKey string //nolint:gosec // Contains credential material by design.
 	Site   string
 
 	// APIBaseURL overrides the API base URL (for tests or custom gateways).
@@ -112,6 +112,16 @@ func (c *Client) Spans() SpansClient {
 	return &spansClient{client: c}
 }
 
+// ErrorTracking returns the error tracking domain client.
+func (c *Client) ErrorTracking() ErrorTrackingClient {
+	return &errorTrackingClient{client: c}
+}
+
+// RUM returns the RUM events domain client.
+func (c *Client) RUM() RUMClient {
+	return &rumClient{client: c}
+}
+
 func apiBaseURLForSite(site string) (string, error) {
 	s := strings.TrimSpace(site)
 	if s == "" {
@@ -142,6 +152,10 @@ func apiBaseURLForSite(site string) (string, error) {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, reqBody, out any) error {
+	return c.doJSONWithQuery(ctx, method, path, nil, reqBody, out)
+}
+
+func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query url.Values, reqBody, out any) error {
 	var requestPayload []byte
 	if reqBody != nil {
 		payload, err := json.Marshal(reqBody)
@@ -152,6 +166,9 @@ func (c *Client) doJSON(ctx context.Context, method, path string, reqBody, out a
 	}
 
 	endpoint := c.apiBaseURL.ResolveReference(&url.URL{Path: path})
+	if len(query) > 0 {
+		endpoint.RawQuery = query.Encode()
+	}
 
 	for attempt := 0; ; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), bytes.NewReader(requestPayload))
@@ -163,7 +180,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, reqBody, out a
 		req.Header.Set("DD-API-KEY", c.apiKey)
 		req.Header.Set("DD-APPLICATION-KEY", c.appKey)
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.httpClient.Do(req) //nolint:gosec // Endpoint is derived from validated Datadog site/API base URL or explicit test override.
 		if err != nil {
 			if shouldRetryError(err) && attempt < c.maxRetries {
 				if err := sleepWithBackoff(ctx, c.initialBackoff, attempt); err != nil {

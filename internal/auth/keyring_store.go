@@ -11,8 +11,8 @@ import (
 const defaultKeyringService = "ddogo"
 
 type keyringPayload struct {
-	APIKey string `json:"api_key"`
-	AppKey string `json:"app_key"`
+	APIKey string `json:"api_key"` //nolint:gosec // Contains credential material by design.
+	AppKey string `json:"app_key"` //nolint:gosec // Contains credential material by design.
 	Site   string `json:"site,omitempty"`
 }
 

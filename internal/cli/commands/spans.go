@@ -18,8 +18,9 @@ const defaultLogsLimit = 20
 // Spans returns the top-level "spans" command with its subcommands.
 func Spans() *cli.Command {
 	return &cli.Command{
-		Name:  "spans",
-		Usage: "Search Datadog spans",
+		Name:    "spans",
+		Aliases: []string{"trace", "traces"},
+		Usage:   "Search Datadog spans",
 		Subcommands: []*cli.Command{
 			spansSearch(),
 		},

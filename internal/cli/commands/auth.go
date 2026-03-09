@@ -293,8 +293,20 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func stdinFD() (int, error) {
+	const maxInt = int(^uint(0) >> 1)
+	fd := os.Stdin.Fd()
+	if fd > uintptr(maxInt) {
+		return 0, fmt.Errorf("stdin file descriptor value out of range")
+	}
+	return int(fd), nil
+}
+
 func promptSecret(prompt string) (string, error) {
-	fd := int(os.Stdin.Fd())
+	fd, err := stdinFD()
+	if err != nil {
+		return "", err
+	}
 	if !term.IsTerminal(fd) {
 		return "", fmt.Errorf("interactive prompt requires a terminal; use --non-interactive with key flags")
 	}
@@ -309,7 +321,11 @@ func promptSecret(prompt string) (string, error) {
 }
 
 func promptLine(label, defaultValue string) (string, error) {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
+	fd, err := stdinFD()
+	if err != nil {
+		return "", err
+	}
+	if !term.IsTerminal(fd) {
 		return "", fmt.Errorf("interactive prompt requires a terminal")
 	}
 

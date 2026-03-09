@@ -119,6 +119,73 @@ Spans search rate limits and retry/error handling:
 - Retry with backoff on transient failures (`429`, `408`, `5xx`, and transport timeouts).
 - Do not retry client/auth errors (`400`, `401`, `403`) without user action.
 
+## Datadog RUM endpoints in scope
+
+Primary endpoints for `ddogo` (RUM event consumption):
+
+1. **POST `/api/v2/rum/events/search`** (preferred)
+   - Main endpoint for `rum search`.
+   - Supports rich filters (`query`, `from`, `to`), sort (`timestamp`, `-timestamp`), and cursor pagination (`page.limit`, `page.cursor`).
+   - Use `meta.page.after` for incremental pagination.
+
+2. **GET `/api/v2/rum/events`** (optional companion)
+   - Query-string variant of v2 search.
+   - Useful for simple requests and compatibility with `links.next` URL pagination.
+
+Authentication/permissions for RUM search endpoints:
+- Require both `DD_API_KEY` and `DD_APP_KEY`.
+- Require Datadog permission/scope: `rum_apps_read`.
+
+Current out-of-scope RUM endpoint (unless explicitly adding new commands):
+- RUM analytics aggregate: `POST /api/v2/rum/analytics/aggregate`
+
+RUM search retry/error handling policy:
+- Retry with backoff on transient failures (`429`, `408`, `5xx`, and transport timeouts).
+- Do not retry client/auth errors (`400`, `401`, `403`) without user action.
+
+## Datadog Error Tracking endpoints in scope
+
+Primary endpoints for `ddogo` (error tracking issue workflows):
+
+1. **POST `/api/v2/error-tracking/issues/search`**
+   - Main endpoint for `errors search`.
+   - Request requires: `query`, `from` (ms epoch), `to` (ms epoch), and either `track` (`trace|logs|rum`) or `persona` (`ALL|BROWSER|MOBILE|BACKEND`).
+   - Optional: `order_by` (`TOTAL_COUNT|FIRST_SEEN|IMPACTED_SESSIONS|PRIORITY`) and `include` (`issue`, `issue.assignee`, `issue.case`, `issue.team_owners`).
+   - CLI ergonomics: when neither `track` nor `persona` is provided, default to `persona=ALL`.
+   - Response size is capped by Datadog to **100 issues per request**.
+
+2. **GET `/api/v2/error-tracking/issues/{issue_id}`**
+   - Used by `errors get`.
+   - Optional `include`: `assignee`, `case`, `team_owners`.
+
+3. **PUT `/api/v2/error-tracking/issues/{issue_id}/state`**
+   - Used by `errors set-state`.
+   - Supported states: `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED`, `EXCLUDED`.
+
+4. **PUT `/api/v2/error-tracking/issues/{issue_id}/assignee`**
+   - Used by `errors assign`.
+   - Request body sets assignee user ID.
+
+5. **DELETE `/api/v2/error-tracking/issues/{issue_id}/assignee`**
+   - Used by `errors unassign`.
+   - Expected success status: `204 No Content`.
+
+Companion enrichment endpoint (for issue event context):
+- **POST `/api/v2/rum/events/search`**
+  - Used by `rum search` (for example with `@issue.id:<issue_id>`) and future issue enrichment in `errors get`.
+  - Query by issue identifier using `@issue.id:<issue_id>`.
+  - Returns rich event payloads (for example stack traces, session/view attributes, browser/device context) for RUM-origin issues.
+
+Authentication/permissions for error tracking:
+- Require both `DD_API_KEY` and `DD_APP_KEY`.
+- Read operations require Datadog scope/permission: `error_tracking_read`.
+- Write operations require Datadog scope/permission: `error_tracking_write`.
+- Assignee update/remove also requires cases scopes: `cases_read` and `cases_write`.
+
+Error handling policy for error tracking:
+- Retry with backoff on transient failures (`429`, `408`, `5xx`, and transport timeouts).
+- Do not retry client/auth errors (`400`, `401`, `403`, `404`) without user action.
+
 ## Configuration and auth
 
 - Prefer environment variables for secrets and sensitive settings.

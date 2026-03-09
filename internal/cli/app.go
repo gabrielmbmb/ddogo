@@ -11,7 +11,7 @@ import (
 func New(version string) *cli.App {
 	return &cli.App{
 		Name:    "ddogo",
-		Usage:   "Consume Datadog logs and spans from the command line",
+		Usage:   "Consume Datadog logs, spans, RUM events, and error tracking issues from the command line",
 		Version: version,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -46,6 +46,8 @@ func New(version string) *cli.App {
 			commands.Auth(),
 			commands.Logs(),
 			commands.Spans(),
+			commands.RUM(),
+			commands.Errors(),
 		},
 	}
 }
