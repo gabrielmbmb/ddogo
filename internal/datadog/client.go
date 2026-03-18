@@ -122,6 +122,11 @@ func (c *Client) RUM() RUMClient {
 	return &rumClient{client: c}
 }
 
+// Metrics returns the metrics domain client.
+func (c *Client) Metrics() MetricsClient {
+	return &metricsClient{client: c}
+}
+
 func apiBaseURLForSite(site string) (string, error) {
 	s := strings.TrimSpace(site)
 	if s == "" {
