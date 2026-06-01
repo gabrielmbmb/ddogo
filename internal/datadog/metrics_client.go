@@ -94,14 +94,14 @@ type MetricListEntry struct {
 
 // MetricMetadata contains metadata about a specific metric.
 type MetricMetadata struct {
-	Description     string `json:"description,omitempty"`
-	Integration     string `json:"integration,omitempty"`
-	PerUnit         string `json:"per_unit,omitempty"`
-	ShortName       string `json:"short_name,omitempty"`
-	StatsdInterval  *int64 `json:"statsd_interval,omitempty"`
-	Type            string `json:"type,omitempty"`
-	Unit            string `json:"unit,omitempty"`
-	MetricName      string `json:"metric_name,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Integration    string `json:"integration,omitempty"`
+	PerUnit        string `json:"per_unit,omitempty"`
+	ShortName      string `json:"short_name,omitempty"`
+	StatsdInterval *int64 `json:"statsd_interval,omitempty"`
+	Type           string `json:"type,omitempty"`
+	Unit           string `json:"unit,omitempty"`
+	MetricName     string `json:"metric_name,omitempty"`
 }
 
 // MetricAllTagsResult contains the tags for a given metric.
@@ -275,8 +275,8 @@ type metricsListV2DataItemAttributes struct {
 
 type metricAllTagsV2Response struct {
 	Data struct {
-		ID         string                      `json:"id"`
-		Type       string                      `json:"type"`
+		ID         string                     `json:"id"`
+		Type       string                     `json:"type"`
 		Attributes *metricAllTagsV2Attributes `json:"attributes,omitempty"`
 	} `json:"data"`
 }

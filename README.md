@@ -1,6 +1,6 @@
 # ddogo
 
-Lightweight CLI for consuming Datadog logs, spans, RUM events, and Error Tracking issues from the command line.
+Lightweight CLI for consuming Datadog logs, spans, RUM events, metrics, monitors, and Error Tracking issues from the command line.
 
 ## Installation
 
@@ -243,6 +243,78 @@ ddogo errors set-state c1726a66-1f64-11ee-b338-da7ad0900002 --state RESOLVED
 # Assign and unassign
 ddogo errors assign c1726a66-1f64-11ee-b338-da7ad0900002 --assignee-id 87cb11a0-278c-440a-99fe-701223c80296
 ddogo errors unassign c1726a66-1f64-11ee-b338-da7ad0900002
+```
+
+### `monitors` (alias: `monitor`)
+
+List and create Datadog monitors.
+
+#### `monitors list`
+
+```
+ddogo monitors list [--type <type>] [--name <name>] [--tags <tags>] [--monitor-tags <tags>] [--limit <n>]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--group-states` | Comma-separated states: `all`, `alert`, `warn`, `no data` | — |
+| `--name` | Filter monitors by name | — |
+| `--type` | Filter monitors by type (for example `log alert`, `query alert`, `trace-analytics alert`) | — |
+| `--tags` | Scope tags filter (comma-separated) | — |
+| `--monitor-tags` | Service/custom monitor tags filter (comma-separated) | — |
+| `--with-downtimes` | Include active downtimes | `false` |
+| `--limit` | Maximum monitors to return | `100` |
+| `--all` | Return all matching monitors | `false` |
+
+#### `monitors alerts`
+
+List current monitor alert groups and include the raise time plus best-effort search context for logs, spans, RUM, or Error Tracking monitors.
+
+```
+ddogo monitors alerts [--type <type>] [--status alert,warn,no data] [--context-window 15m]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--status` | Comma-separated statuses: `all`, `alert`, `warn`, `no data`, `ok`, `unknown`, `ignored`, `skipped` | `alert,warn,no data` |
+| `--type` | Filter monitors by type | — |
+| `--name` | Filter monitors by name | — |
+| `--tags` | Scope tags filter (comma-separated) | — |
+| `--monitor-tags` | Service/custom monitor tags filter (comma-separated) | — |
+| `--context-window` | Time around the raise time used for `from`/`to` search context | `15m` |
+| `--limit` | Maximum monitor alert groups to return | `100` |
+
+#### `monitors create`
+
+```
+ddogo monitors create --name <name> --type <type> --query <query> --message <message> [options]
+```
+
+Common create flags include `--tags`, `--priority`, threshold flags such as `--threshold-critical`, and `--options-json` / `--request-file` for advanced monitor payloads.
+
+**Examples:**
+
+```bash
+# List log monitors
+ddogo monitors list --type 'log alert'
+
+# List log monitor alerts with search context
+ddogo monitors alerts --type 'log alert'
+
+# List alerting monitors with JSON output
+ddogo monitors list --group-states alert,warn --output json
+
+# Create a metric monitor
+ddogo monitors create \
+  --name 'High CPU' \
+  --type 'query alert' \
+  --query 'avg(last_5m):avg:system.cpu.user{*} > 80' \
+  --message 'CPU is high' \
+  --threshold-critical 80 \
+  --tags 'env:prod,service:api'
+
+# Create from a full Datadog monitor JSON body
+ddogo monitors create --request-file monitor.json --output json
 ```
 
 ## Global flags

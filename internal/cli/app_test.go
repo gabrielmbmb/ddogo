@@ -51,6 +51,16 @@ func TestAppIncludesRUMCommand(t *testing.T) {
 	t.Fatal("expected root app to include rum command")
 }
 
+func TestAppIncludesMonitorsCommand(t *testing.T) {
+	app := New("test")
+	for _, cmd := range app.Commands {
+		if cmd.Name == "monitors" {
+			return
+		}
+	}
+	t.Fatal("expected root app to include monitors command")
+}
+
 func TestDomainCommandAliases(t *testing.T) {
 	app := New("test")
 
@@ -74,4 +84,5 @@ func TestDomainCommandAliases(t *testing.T) {
 	expectAlias("spans", "trace")
 	expectAlias("spans", "traces")
 	expectAlias("errors", "error")
+	expectAlias("monitors", "monitor")
 }

@@ -127,6 +127,11 @@ func (c *Client) Metrics() MetricsClient {
 	return &metricsClient{client: c}
 }
 
+// Monitors returns the monitors domain client.
+func (c *Client) Monitors() MonitorsClient {
+	return &monitorsClient{client: c}
+}
+
 func apiBaseURLForSite(site string) (string, error) {
 	s := strings.TrimSpace(site)
 	if s == "" {

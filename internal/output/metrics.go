@@ -226,5 +226,3 @@ func renderPrettyMetricTags(w io.Writer, result datadog.MetricAllTagsResult) err
 
 	return nil
 }
-
-
