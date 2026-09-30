@@ -3,29 +3,27 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/config"
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
 // Logs returns the top-level "logs" command with its subcommands.
-func Logs() *cli.Command {
+func (d Dependencies) Logs() *cli.Command {
 	return &cli.Command{
 		Name:    "logs",
 		Aliases: []string{"log"},
 		Usage:   "Search Datadog logs",
 		Subcommands: []*cli.Command{
-			logsSearch(),
+			d.logsSearch(),
 		},
 	}
 }
 
-func logsSearch() *cli.Command {
+func (d Dependencies) logsSearch() *cli.Command {
 	return &cli.Command{
 		Name:        "search",
 		Usage:       "Search logs in a time window",
@@ -54,7 +52,7 @@ func logsSearch() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -63,13 +61,13 @@ func logsSearch() *cli.Command {
 				return fmt.Errorf("--limit must be > 0")
 			}
 
-			now := time.Now().UTC()
+			now := d.Now().UTC()
 			from, to, err := parseWindow(now, c.String("from"), c.String("to"), "from", "to")
 			if err != nil {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -84,10 +82,10 @@ func logsSearch() *cli.Command {
 			}
 
 			for _, warning := range datadog.FormatSearchWarnings("logs", result.Status, result.Warnings) {
-				_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+				_, _ = fmt.Fprintf(c.App.ErrWriter, "warning: %s\n", warning)
 			}
 
-			return output.RenderLogs(os.Stdout, cfg.Output, result.Logs)
+			return output.RenderLogs(c.App.Writer, cfg.Output, result.Logs)
 		},
 	}
 }

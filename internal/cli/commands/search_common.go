@@ -3,18 +3,7 @@ package commands
 import (
 	"fmt"
 	"time"
-
-	"github.com/gabrielmbmb/ddogo/internal/config"
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
-
-func newDatadogClient(cfg config.Global) (*datadog.Client, error) {
-	return datadog.NewClient(datadog.ClientConfig{
-		APIKey: cfg.DDAPIKey,
-		AppKey: cfg.DDAppKey,
-		Site:   cfg.Site,
-	})
-}
 
 func parseWindow(now time.Time, fromValue, toValue, fromFlag, toFlag string) (time.Time, time.Time, error) {
 	from, err := parseTimeInput(fromValue, now)

@@ -2,32 +2,29 @@ package commands
 
 import (
 	"fmt"
-	"os"
-	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/config"
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
 // Metrics returns the top-level "metrics" command with its subcommands.
-func Metrics() *cli.Command {
+func (d Dependencies) Metrics() *cli.Command {
 	return &cli.Command{
 		Name:    "metrics",
 		Aliases: []string{"metric"},
 		Usage:   "Query and explore Datadog metrics",
 		Subcommands: []*cli.Command{
-			metricsQuery(),
-			metricsList(),
-			metricsMetadata(),
-			metricsTags(),
+			d.metricsQuery(),
+			d.metricsList(),
+			d.metricsMetadata(),
+			d.metricsTags(),
 		},
 	}
 }
 
-func metricsQuery() *cli.Command {
+func (d Dependencies) metricsQuery() *cli.Command {
 	return &cli.Command{
 		Name:        "query",
 		Usage:       "Query timeseries points for a metric",
@@ -51,18 +48,18 @@ func metricsQuery() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
 
-			now := time.Now().UTC()
+			now := d.Now().UTC()
 			from, to, err := parseWindow(now, c.String("from"), c.String("to"), "from", "to")
 			if err != nil {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -77,18 +74,18 @@ func metricsQuery() *cli.Command {
 			}
 
 			if result.Error != "" {
-				_, _ = fmt.Fprintf(os.Stderr, "warning: query error: %s\n", result.Error)
+				_, _ = fmt.Fprintf(c.App.ErrWriter, "warning: query error: %s\n", result.Error)
 			}
 			if result.Message != "" && result.Message != "success" {
-				_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", result.Message)
+				_, _ = fmt.Fprintf(c.App.ErrWriter, "warning: %s\n", result.Message)
 			}
 
-			return output.RenderMetricsQuery(os.Stdout, cfg.Output, result)
+			return output.RenderMetricsQuery(c.App.Writer, cfg.Output, result)
 		},
 	}
 }
 
-func metricsList() *cli.Command {
+func (d Dependencies) metricsList() *cli.Command {
 	return &cli.Command{
 		Name:        "list",
 		Usage:       "List actively reporting metrics",
@@ -117,7 +114,7 @@ func metricsList() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -126,7 +123,7 @@ func metricsList() *cli.Command {
 				return fmt.Errorf("--limit must be > 0")
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -147,19 +144,19 @@ func metricsList() *cli.Command {
 				return err
 			}
 
-			return output.RenderMetricsList(os.Stdout, cfg.Output, result)
+			return output.RenderMetricsList(c.App.Writer, cfg.Output, result)
 		},
 	}
 }
 
-func metricsMetadata() *cli.Command {
+func (d Dependencies) metricsMetadata() *cli.Command {
 	return &cli.Command{
 		Name:        "metadata",
 		Usage:       "Get metadata for a specific metric",
 		ArgsUsage:   "<metric-name>",
 		Description: "Examples:\n  ddogo metrics metadata system.cpu.idle\n  ddogo metrics metadata system.net.bytes_sent --output json",
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -169,7 +166,7 @@ func metricsMetadata() *cli.Command {
 				return fmt.Errorf("metric name is required (usage: ddogo metrics metadata <metric-name>)")
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -179,19 +176,19 @@ func metricsMetadata() *cli.Command {
 				return err
 			}
 
-			return output.RenderMetricMetadata(os.Stdout, cfg.Output, meta)
+			return output.RenderMetricMetadata(c.App.Writer, cfg.Output, meta)
 		},
 	}
 }
 
-func metricsTags() *cli.Command {
+func (d Dependencies) metricsTags() *cli.Command {
 	return &cli.Command{
 		Name:        "tags",
 		Usage:       "List indexed and ingested tags for a metric",
 		ArgsUsage:   "<metric-name>",
 		Description: "Examples:\n  ddogo metrics tags system.cpu.idle\n  ddogo metrics tags system.load.1 --output json",
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -201,7 +198,7 @@ func metricsTags() *cli.Command {
 				return fmt.Errorf("metric name is required (usage: ddogo metrics tags <metric-name>)")
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -211,7 +208,7 @@ func metricsTags() *cli.Command {
 				return err
 			}
 
-			return output.RenderMetricTags(os.Stdout, cfg.Output, result)
+			return output.RenderMetricTags(c.App.Writer, cfg.Output, result)
 		},
 	}
 }

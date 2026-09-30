@@ -2,10 +2,7 @@ package config
 
 import (
 	"errors"
-	"flag"
 	"testing"
-
-	"github.com/urfave/cli/v2"
 
 	"github.com/gabrielmbmb/ddogo/internal/auth"
 )
@@ -19,75 +16,95 @@ func (f fakeStore) Save(_ string, _ auth.Credentials) error { return nil }
 func (f fakeStore) Load(_ string) (auth.Credentials, error) { return f.creds, f.err }
 func (f fakeStore) Delete(_ string) error                   { return nil }
 
-func TestLoadGlobalValidatesOutput(t *testing.T) {
-	set := flag.NewFlagSet("test", 0)
-	_ = set.String("output", "yaml", "")
-	_ = set.String("dd-api-key", "", "")
-	_ = set.String("dd-app-key", "", "")
-	_ = set.String("site", "", "")
-	_ = set.String("profile", "", "")
-	ctx := cli.NewContext(nil, set, nil)
-
-	_, err := loadGlobalWithStore(ctx, fakeStore{})
-	if err == nil {
-		t.Fatal("expected error for invalid output")
+func TestLoad(t *testing.T) {
+	t.Parallel()
+	stored := auth.Credentials{APIKey: "stored-api", AppKey: "stored-app", Site: "datadoghq.eu"}
+	corrupt := errors.New("invalid stored payload")
+	for _, tt := range []struct {
+		name    string
+		input   Global
+		store   fakeStore
+		want    Global
+		wantErr error
+	}{
+		{
+			name:  "store fallback",
+			input: Global{Output: "pretty"}, store: fakeStore{creds: stored},
+			want: Global{Output: "pretty", DDAPIKey: "stored-api", DDAppKey: "stored-app", Site: "datadoghq.eu", Profile: "default"},
+		},
+		{
+			name:  "supplied values override store",
+			input: Global{Output: " JSON ", DDAPIKey: " api ", DDAppKey: " app ", Site: " us3.datadoghq.com ", Profile: " work "},
+			store: fakeStore{err: corrupt},
+			want:  Global{Output: "json", DDAPIKey: "api", DDAppKey: "app", Site: "us3.datadoghq.com", Profile: "work"},
+		},
+		{
+			name:  "site still falls back with supplied keys",
+			input: Global{Output: "json", DDAPIKey: "api", DDAppKey: "app"}, store: fakeStore{creds: stored},
+			want: Global{Output: "json", DDAPIKey: "api", DDAppKey: "app", Site: "datadoghq.eu", Profile: "default"},
+		},
+		{
+			name:  "partial credentials",
+			input: Global{Output: "pretty", DDAPIKey: "api"}, store: fakeStore{creds: stored},
+			want: Global{Output: "pretty", DDAPIKey: "api", DDAppKey: "stored-app", Site: "datadoghq.eu", Profile: "default"},
+		},
+		{
+			name:  "missing store",
+			input: Global{Output: "pretty"}, store: fakeStore{err: auth.ErrNotFound},
+			want: Global{Output: "pretty", Site: auth.DefaultSite, Profile: "default"},
+		},
+		{
+			name:  "unavailable store",
+			input: Global{Output: "pretty"}, store: fakeStore{err: auth.ErrUnavailable},
+			want: Global{Output: "pretty", Site: auth.DefaultSite, Profile: "default"},
+		},
+		{
+			name:  "corrupt store",
+			input: Global{Output: "pretty"}, store: fakeStore{err: corrupt}, wantErr: corrupt,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Load(tt.input, tt.store)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatal("resolved configuration did not match expected values")
+			}
+		})
 	}
 }
 
-func TestLoadGlobalFallsBackToStore(t *testing.T) {
-	set := flag.NewFlagSet("test", 0)
-	_ = set.String("output", "pretty", "")
-	_ = set.String("dd-api-key", "", "")
-	_ = set.String("dd-app-key", "", "")
-	_ = set.String("site", "", "")
-	_ = set.String("profile", "", "")
-	ctx := cli.NewContext(nil, set, nil)
-
-	cfg, err := loadGlobalWithStore(ctx, fakeStore{creds: auth.Credentials{
-		APIKey: "api",
-		AppKey: "app",
-		Site:   "datadoghq.eu",
-	}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestResolveSources(t *testing.T) {
+	t.Parallel()
+	cfg, sources := Resolve(Global{DDAPIKey: "provided", Profile: " work "}, auth.Credentials{AppKey: "stored"})
+	if cfg.Profile != "work" || cfg.Site != auth.DefaultSite {
+		t.Fatal("incorrect credential resolution")
 	}
-	if cfg.DDAPIKey != "api" || cfg.DDAppKey != "app" || cfg.Site != "datadoghq.eu" {
-		t.Fatalf("unexpected cfg: %+v", cfg)
+	if sources.APIKeyFrom != "flag_or_env" || sources.AppKeyFrom != "store" || sources.SiteFrom != "default" {
+		t.Fatal("incorrect credential sources")
+	}
+	_, sources = Resolve(Global{}, auth.Credentials{})
+	if sources.APIKeyFrom != "missing" || sources.AppKeyFrom != "missing" {
+		t.Fatal("expected missing credentials")
+	}
+	_, sources = Resolve(Global{}, auth.Credentials{Site: "datadoghq.eu"})
+	if sources.SiteFrom != "store" {
+		t.Fatal("expected stored site")
 	}
 }
 
-func TestLoadGlobalUsesDefaultSiteWhenStoreMissing(t *testing.T) {
-	set := flag.NewFlagSet("test", 0)
-	_ = set.String("output", "pretty", "")
-	_ = set.String("dd-api-key", "", "")
-	_ = set.String("dd-app-key", "", "")
-	_ = set.String("site", "", "")
-	_ = set.String("profile", "", "")
-	ctx := cli.NewContext(nil, set, nil)
-
-	for _, errVal := range []error{auth.ErrNotFound, auth.ErrUnavailable} {
-		cfg, err := loadGlobalWithStore(ctx, fakeStore{err: errVal})
-		if err != nil {
-			t.Fatalf("unexpected error for %v: %v", errVal, err)
+func TestParseOutput(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"pretty", "json", " PRETTY "} {
+		if _, err := ParseOutput(value); err != nil {
+			t.Fatalf("expected %q to be valid: %v", value, err)
 		}
-		if cfg.Site != auth.DefaultSite {
-			t.Fatalf("expected default site %q, got %q", auth.DefaultSite, cfg.Site)
-		}
 	}
-}
-
-func TestLoadGlobalReturnsStoreDataCorruptionErrors(t *testing.T) {
-	set := flag.NewFlagSet("test", 0)
-	_ = set.String("output", "pretty", "")
-	_ = set.String("dd-api-key", "", "")
-	_ = set.String("dd-app-key", "", "")
-	_ = set.String("site", "", "")
-	_ = set.String("profile", "", "")
-	ctx := cli.NewContext(nil, set, nil)
-
-	storeErr := errors.New("bad payload")
-	_, err := loadGlobalWithStore(ctx, fakeStore{err: storeErr})
-	if !errors.Is(err, storeErr) {
-		t.Fatalf("expected %v, got %v", storeErr, err)
+	if _, err := Load(Global{Output: "yaml"}, nil); err == nil {
+		t.Fatal("expected invalid output to fail")
+	}
+	if _, err := Load(Global{Output: "pretty"}, nil); err != nil {
+		t.Fatalf("expected nil store to use defaults: %v", err)
 	}
 }

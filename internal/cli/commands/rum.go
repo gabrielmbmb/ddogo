@@ -2,28 +2,26 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/config"
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
 // RUM returns the top-level "rum" command with its subcommands.
-func RUM() *cli.Command {
+func (d Dependencies) RUM() *cli.Command {
 	return &cli.Command{
 		Name:  "rum",
 		Usage: "Search Datadog RUM events",
 		Subcommands: []*cli.Command{
-			rumSearch(),
+			d.rumSearch(),
 		},
 	}
 }
 
-func rumSearch() *cli.Command {
+func (d Dependencies) rumSearch() *cli.Command {
 	return &cli.Command{
 		Name:        "search",
 		Usage:       "Search RUM events in a time window",
@@ -52,7 +50,7 @@ func rumSearch() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -61,13 +59,13 @@ func rumSearch() *cli.Command {
 				return fmt.Errorf("--limit must be > 0")
 			}
 
-			now := time.Now().UTC()
+			now := d.Now().UTC()
 			from, to, err := parseWindow(now, c.String("from"), c.String("to"), "from", "to")
 			if err != nil {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -83,10 +81,10 @@ func rumSearch() *cli.Command {
 			}
 
 			for _, warning := range datadog.FormatSearchWarnings("rum", result.Status, result.Warnings) {
-				_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+				_, _ = fmt.Fprintf(c.App.ErrWriter, "warning: %s\n", warning)
 			}
 
-			return output.RenderRUMEvents(os.Stdout, cfg.Output, result.Events)
+			return output.RenderRUMEvents(c.App.Writer, cfg.Output, result.Events)
 		},
 	}
 }

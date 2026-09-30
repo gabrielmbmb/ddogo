@@ -85,7 +85,7 @@ func (c *rumClient) Search(ctx context.Context, req SearchRUMEventsRequest) (RUM
 		}
 
 		var resp rumEventsSearchResponse
-		if err := c.client.doJSON(ctx, http.MethodPost, rumEventsSearchEndpoint, body, &resp); err != nil {
+		if err := c.client.doJSON(ctx, http.MethodPost, rumEventsSearchEndpoint, body, &resp, retryTransient); err != nil {
 			return RUMEventsSearchResult{}, err
 		}
 

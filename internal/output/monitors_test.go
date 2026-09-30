@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/monitors"
 )
 
 func TestRenderMonitorsJSON(t *testing.T) {
@@ -131,7 +132,7 @@ func TestRenderMonitorAlertsPretty(t *testing.T) {
 	t.Parallel()
 
 	priority := int64(2)
-	alerts := []datadog.MonitorAlert{
+	alerts := []monitors.Alert{
 		{
 			MonitorID:    123,
 			MonitorName:  "Log errors",
@@ -144,7 +145,7 @@ func TestRenderMonitorAlertsPretty(t *testing.T) {
 			Group:        "host:web01",
 			Status:       "Alert",
 			RaisedAtTS:   1710000000,
-			Investigation: &datadog.MonitorInvestigation{
+			Investigation: &monitors.Investigation{
 				Source: "logs",
 				Query:  "service:api status:error host:web01 very_long_filter:abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789 " + strings.Repeat("z", 300),
 				From:   "2024-03-09T15:45:00Z",
@@ -172,7 +173,7 @@ func TestRenderMonitorAlertsPretty(t *testing.T) {
 func TestRenderMonitorAlertsJSON(t *testing.T) {
 	t.Parallel()
 
-	alerts := []datadog.MonitorAlert{{MonitorID: 123, MonitorName: "Log errors", Status: "Alert"}}
+	alerts := []monitors.Alert{{MonitorID: 123, MonitorName: "Log errors", Status: "Alert"}}
 	var buf bytes.Buffer
 	if err := RenderMonitorAlerts(&buf, "json", alerts); err != nil {
 		t.Fatalf("unexpected error: %v", err)

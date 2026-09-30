@@ -5,7 +5,7 @@ import "testing"
 func TestMetricsCommandIncludesSubcommands(t *testing.T) {
 	t.Parallel()
 
-	cmd := Metrics()
+	cmd := (Dependencies{}).Metrics()
 	expected := []string{"query", "list", "metadata", "tags"}
 
 	for _, name := range expected {
@@ -25,7 +25,7 @@ func TestMetricsCommandIncludesSubcommands(t *testing.T) {
 func TestMetricsCommandAliases(t *testing.T) {
 	t.Parallel()
 
-	cmd := Metrics()
+	cmd := (Dependencies{}).Metrics()
 	if cmd.Name != "metrics" {
 		t.Fatalf("expected command name 'metrics', got %q", cmd.Name)
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/monitors"
 )
 
 // RenderMonitors writes monitor list results to w.
@@ -41,7 +42,7 @@ func RenderMonitor(w io.Writer, format string, monitor datadog.Monitor) error {
 }
 
 // RenderMonitorAlerts writes monitor alert/group entries to w.
-func RenderMonitorAlerts(w io.Writer, format string, alerts []datadog.MonitorAlert) error {
+func RenderMonitorAlerts(w io.Writer, format string, alerts []monitors.Alert) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -109,7 +110,7 @@ func renderPrettyMonitor(w io.Writer, monitor datadog.Monitor) error {
 	return tw.Flush()
 }
 
-func renderPrettyMonitorAlerts(w io.Writer, alerts []datadog.MonitorAlert) error {
+func renderPrettyMonitorAlerts(w io.Writer, alerts []monitors.Alert) error {
 	if len(alerts) == 0 {
 		_, err := fmt.Fprintln(w, "No monitor alerts found.")
 		return err

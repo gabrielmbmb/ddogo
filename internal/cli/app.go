@@ -2,13 +2,34 @@
 package cli
 
 import (
+	"time"
+
 	"github.com/urfave/cli/v2"
 
+	"github.com/gabrielmbmb/ddogo/internal/auth"
 	"github.com/gabrielmbmb/ddogo/internal/cli/commands"
+	"github.com/gabrielmbmb/ddogo/internal/config"
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
-// New constructs and returns the root ddogo CLI application.
-func New(version string) *cli.App {
+// New constructs the root application. Zero-valued dependencies use production
+// defaults; tests can replace the store, clock, and API client factory.
+func New(version string, deps commands.Dependencies) *cli.App {
+	if deps.Store == nil {
+		deps.Store = auth.NewKeyringStore()
+	}
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
+	if deps.NewClient == nil {
+		deps.NewClient = func(cfg config.Global) (*datadog.Client, error) {
+			return datadog.NewClient(datadog.ClientConfig{
+				APIKey: cfg.DDAPIKey,
+				AppKey: cfg.DDAppKey,
+				Site:   cfg.Site,
+			})
+		}
+	}
 	return &cli.App{
 		Name:    "ddogo",
 		Usage:   "Consume Datadog logs, spans, RUM events, metrics, monitors, and error tracking issues from the command line",
@@ -43,13 +64,13 @@ func New(version string) *cli.App {
 			},
 		},
 		Commands: []*cli.Command{
-			commands.Auth(),
-			commands.Logs(),
-			commands.Spans(),
-			commands.RUM(),
-			commands.Errors(),
-			commands.Metrics(),
-			commands.Monitors(),
+			deps.Auth(),
+			deps.Logs(),
+			deps.Spans(),
+			deps.RUM(),
+			deps.Errors(),
+			deps.Metrics(),
+			deps.Monitors(),
 		},
 	}
 }

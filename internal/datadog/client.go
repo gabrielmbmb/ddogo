@@ -5,10 +5,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,6 +17,7 @@ const (
 	defaultHTTPTimeout    = 30 * time.Second
 	defaultMaxRetries     = 3
 	defaultInitialBackoff = 250 * time.Millisecond
+	defaultMaxRetryWait   = 5 * time.Second
 	maxErrorBodyBytes     = 64 * 1024
 )
 
@@ -35,9 +34,12 @@ type ClientConfig struct {
 	// Example: https://api.datadoghq.com
 	APIBaseURL string
 
-	HTTPClient     *http.Client
+	HTTPClient *http.Client
+	// MaxRetries defaults to 3 when zero. A negative value disables retries.
 	MaxRetries     int
 	InitialBackoff time.Duration
+	// MaxRetryWait caps cumulative retry sleeps per request. Zero defaults to 5s.
+	MaxRetryWait time.Duration
 }
 
 // Client is a shared Datadog API transport.
@@ -49,6 +51,7 @@ type Client struct {
 
 	maxRetries     int
 	initialBackoff time.Duration
+	maxRetryWait   time.Duration
 }
 
 // NewClient constructs a Client from the provided configuration.
@@ -77,19 +80,35 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("invalid Datadog API base URL %q", baseURL)
 	}
 
-	httpClient := cfg.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+	httpClient := &http.Client{Timeout: defaultHTTPTimeout}
+	if cfg.HTTPClient != nil {
+		clone := *cfg.HTTPClient
+		httpClient = &clone
+	}
+	// API endpoints must not redirect authenticated requests or replay writes.
+	// Clone an injected client so its owner's redirect policy is unchanged.
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
 	maxRetries := cfg.MaxRetries
-	if maxRetries <= 0 {
+	if maxRetries == 0 {
 		maxRetries = defaultMaxRetries
+	} else if maxRetries < 0 {
+		maxRetries = 0
 	}
 
 	initialBackoff := cfg.InitialBackoff
 	if initialBackoff <= 0 {
 		initialBackoff = defaultInitialBackoff
+	}
+
+	maxRetryWait := cfg.MaxRetryWait
+	if maxRetryWait < 0 {
+		return nil, fmt.Errorf("max retry wait must be >= 0")
+	}
+	if maxRetryWait == 0 {
+		maxRetryWait = defaultMaxRetryWait
 	}
 
 	return &Client{
@@ -99,6 +118,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		appKey:         cfg.AppKey,
 		maxRetries:     maxRetries,
 		initialBackoff: initialBackoff,
+		maxRetryWait:   maxRetryWait,
 	}, nil
 }
 
@@ -161,11 +181,11 @@ func apiBaseURLForSite(site string) (string, error) {
 	return "https://api." + s, nil
 }
 
-func (c *Client) doJSON(ctx context.Context, method, path string, reqBody, out any) error {
-	return c.doJSONWithQuery(ctx, method, path, nil, reqBody, out)
+func (c *Client) doJSON(ctx context.Context, method, path string, reqBody, out any, policy retryPolicy) error {
+	return c.doJSONWithQuery(ctx, method, path, nil, reqBody, out, policy)
 }
 
-func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query url.Values, reqBody, out any) error {
+func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query url.Values, reqBody, out any, policy retryPolicy) error {
 	var requestPayload []byte
 	if reqBody != nil {
 		payload, err := json.Marshal(reqBody)
@@ -180,7 +200,11 @@ func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query
 		endpoint.RawQuery = query.Encode()
 	}
 
+	remainingWait := c.maxRetryWait
 	for attempt := 0; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), bytes.NewReader(requestPayload))
 		if err != nil {
 			return fmt.Errorf("failed to build Datadog request: %w", err)
@@ -192,11 +216,15 @@ func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query
 
 		resp, err := c.httpClient.Do(req) //nolint:gosec // Endpoint is derived from validated Datadog site/API base URL or explicit test override.
 		if err != nil {
-			if shouldRetryError(err) && attempt < c.maxRetries {
-				if err := sleepWithBackoff(ctx, c.initialBackoff, attempt); err != nil {
-					return err
+			if policy != noRetries && shouldRetryError(err) && attempt < c.maxRetries {
+				delay := backoffDelay(c.initialBackoff, attempt, 0)
+				if delay <= remainingWait {
+					remainingWait -= delay
+					if err := waitForRetry(ctx, delay); err != nil {
+						return err
+					}
+					continue
 				}
-				continue
 			}
 			return fmt.Errorf("datadog request failed: %w", err)
 		}
@@ -225,48 +253,18 @@ func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query
 		}
 
 		apiErr := newAPIError(resp.StatusCode, responseBody)
-		if shouldRetryStatus(resp.StatusCode) && attempt < c.maxRetries {
-			if err := sleepWithBackoff(ctx, c.initialBackoff, attempt); err != nil {
-				return err
+		apiErr.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		if policy.allowsStatus(resp.StatusCode) && attempt < c.maxRetries {
+			delay := backoffDelay(c.initialBackoff, attempt, apiErr.RetryAfter)
+			if delay <= remainingWait {
+				remainingWait -= delay
+				if err := waitForRetry(ctx, delay); err != nil {
+					return err
+				}
+				continue
 			}
-			continue
 		}
 		return apiErr
-	}
-}
-
-func shouldRetryStatus(code int) bool {
-	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
-		return true
-	}
-	return code >= 500
-}
-
-func shouldRetryError(err error) bool {
-	if errors.Is(err, context.Canceled) {
-		return false
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return true
-	}
-	return false
-}
-
-func sleepWithBackoff(ctx context.Context, base time.Duration, attempt int) error {
-	delay := min(base*time.Duration(1<<attempt), 5*time.Second)
-
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
 	}
 }
 
@@ -275,6 +273,7 @@ type APIError struct {
 	StatusCode int
 	Message    string
 	Body       string
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {
@@ -287,7 +286,7 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("datadog API error (%d)", e.StatusCode)
 }
 
-func newAPIError(code int, responseBody []byte) error {
+func newAPIError(code int, responseBody []byte) *APIError {
 	trimmed := strings.TrimSpace(string(responseBody))
 	if trimmed == "" {
 		return &APIError{StatusCode: code}

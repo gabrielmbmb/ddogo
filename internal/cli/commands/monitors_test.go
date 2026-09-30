@@ -5,7 +5,7 @@ import "testing"
 func TestMonitorsCommandIncludesSubcommands(t *testing.T) {
 	t.Parallel()
 
-	cmd := Monitors()
+	cmd := (Dependencies{}).Monitors()
 	expected := []string{"list", "alerts", "create"}
 
 	for _, name := range expected {
@@ -25,7 +25,7 @@ func TestMonitorsCommandIncludesSubcommands(t *testing.T) {
 func TestMonitorsCommandAliases(t *testing.T) {
 	t.Parallel()
 
-	cmd := Monitors()
+	cmd := (Dependencies{}).Monitors()
 	if cmd.Name != "monitors" {
 		t.Fatalf("expected command name 'monitors', got %q", cmd.Name)
 	}

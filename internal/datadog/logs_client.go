@@ -21,6 +21,8 @@ type SearchLogsRequest struct {
 	Sort        string
 	Indexes     []string
 	StorageTier string
+	// SkipRateLimitRetries lets enrichment own its 429 wait/skip policy.
+	SkipRateLimitRetries bool
 }
 
 // LogEntry is a single log record returned by the Datadog Logs Search API.
@@ -56,6 +58,10 @@ func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) (LogsSea
 		return LogsSearchResult{}, fmt.Errorf("from and to are required")
 	}
 
+	policy := retryTransient
+	if req.SkipRateLimitRetries {
+		policy = retryExceptRateLimit
+	}
 	cursor := ""
 	result := LogsSearchResult{Logs: make([]LogEntry, 0, req.Limit)}
 
@@ -94,7 +100,7 @@ func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) (LogsSea
 		}
 
 		var resp logsListResponse
-		if err := c.client.doJSON(ctx, http.MethodPost, logsSearchEndpoint, body, &resp); err != nil {
+		if err := c.client.doJSON(ctx, http.MethodPost, logsSearchEndpoint, body, &resp, policy); err != nil {
 			return LogsSearchResult{}, err
 		}
 		if resp.Meta.Status != "" {

@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	cli2 "github.com/urfave/cli/v2"
+
+	"github.com/gabrielmbmb/ddogo/internal/cli/commands"
 )
 
-func TestUnknownCommandReturnsNonZero(t *testing.T) {
-	app := New("test")
+func TestUnknownCommandExitCode(t *testing.T) {
+	app := New("test", commands.Dependencies{})
 	app.Writer = io.Discard
 	app.ErrWriter = io.Discard
 
@@ -26,13 +28,13 @@ func TestUnknownCommandReturnsNonZero(t *testing.T) {
 	cli2.ErrWriter = io.Discard
 
 	_ = app.Run([]string{"ddogo", "does-not-exist"})
-	if exitCode == 0 {
-		t.Fatal("expected unknown command to exit with non-zero code")
+	if exitCode != 3 {
+		t.Fatalf("expected unknown command exit code 3, got %d", exitCode)
 	}
 }
 
 func TestAppIncludesErrorsCommand(t *testing.T) {
-	app := New("test")
+	app := New("test", commands.Dependencies{})
 	for _, cmd := range app.Commands {
 		if cmd.Name == "errors" {
 			return
@@ -42,7 +44,7 @@ func TestAppIncludesErrorsCommand(t *testing.T) {
 }
 
 func TestAppIncludesRUMCommand(t *testing.T) {
-	app := New("test")
+	app := New("test", commands.Dependencies{})
 	for _, cmd := range app.Commands {
 		if cmd.Name == "rum" {
 			return
@@ -52,7 +54,7 @@ func TestAppIncludesRUMCommand(t *testing.T) {
 }
 
 func TestAppIncludesMonitorsCommand(t *testing.T) {
-	app := New("test")
+	app := New("test", commands.Dependencies{})
 	for _, cmd := range app.Commands {
 		if cmd.Name == "monitors" {
 			return
@@ -62,7 +64,7 @@ func TestAppIncludesMonitorsCommand(t *testing.T) {
 }
 
 func TestDomainCommandAliases(t *testing.T) {
-	app := New("test")
+	app := New("test", commands.Dependencies{})
 
 	expectAlias := func(commandName, alias string) {
 		t.Helper()

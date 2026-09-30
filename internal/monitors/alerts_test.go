@@ -1,4 +1,4 @@
-package commands
+package monitors
 
 import (
 	"strings"
@@ -11,7 +11,7 @@ import (
 func TestParseMonitorStatusFilterDefault(t *testing.T) {
 	t.Parallel()
 
-	filter, err := parseMonitorStatusFilter("")
+	filter, err := ParseStatusFilter("")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestParseMonitorStatusFilterDefault(t *testing.T) {
 func TestParseMonitorStatusFilterAll(t *testing.T) {
 	t.Parallel()
 
-	filter, err := parseMonitorStatusFilter("all")
+	filter, err := ParseStatusFilter("all")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestMonitorInvestigationWindowUsesEvaluationWindow(t *testing.T) {
 func TestBuildMonitorAlertsIncludesInvestigationContext(t *testing.T) {
 	t.Parallel()
 
-	filter, err := parseMonitorStatusFilter("alert")
+	filter, err := ParseStatusFilter("alert")
 	if err != nil {
 		t.Fatalf("unexpected status filter error: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestBuildMonitorAlertsIncludesInvestigationContext(t *testing.T) {
 		},
 	}
 
-	alerts := buildMonitorAlerts(monitors, filter, 15*time.Minute)
+	alerts := BuildAlerts(monitors, filter, 15*time.Minute)
 	if len(alerts) != 1 {
 		t.Fatalf("expected 1 alert, got %d", len(alerts))
 	}

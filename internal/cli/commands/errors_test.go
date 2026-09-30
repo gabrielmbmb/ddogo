@@ -48,7 +48,7 @@ func TestIssueIDArg(t *testing.T) {
 func TestErrorsCommandNoLongerContainsRUMEventsSubcommand(t *testing.T) {
 	t.Parallel()
 
-	cmd := Errors()
+	cmd := (Dependencies{}).Errors()
 	for _, sub := range cmd.Subcommands {
 		if sub.Name == "rum-events" {
 			t.Fatal("did not expect errors command to expose rum-events")

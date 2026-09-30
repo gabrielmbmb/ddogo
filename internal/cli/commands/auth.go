@@ -14,22 +14,23 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gabrielmbmb/ddogo/internal/auth"
+	"github.com/gabrielmbmb/ddogo/internal/config"
 )
 
 // Auth returns credential management commands.
-func Auth() *cli.Command {
+func (d Dependencies) Auth() *cli.Command {
 	return &cli.Command{
 		Name:  "auth",
 		Usage: "Manage persisted Datadog credentials",
 		Subcommands: []*cli.Command{
-			authLogin(),
-			authStatus(),
-			authLogout(),
+			d.authLogin(),
+			d.authStatus(),
+			d.authLogout(),
 		},
 	}
 }
 
-func authLogin() *cli.Command {
+func (d Dependencies) authLogin() *cli.Command {
 	return &cli.Command{
 		Name:        "login",
 		Usage:       "Persist Datadog credentials in the OS keychain",
@@ -49,8 +50,11 @@ func authLogin() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
+			if err := c.Err(); err != nil {
+				return err
+			}
 			profile := auth.NormalizeProfile(c.String("profile"))
-			store := auth.NewKeyringStore()
+			store := d.Store
 
 			existing := auth.Credentials{}
 			stored, err := store.Load(profile)
@@ -74,13 +78,13 @@ func authLogin() *cli.Command {
 				}
 			} else {
 				if strings.TrimSpace(apiKey) == "" {
-					apiKey, err = promptSecret("Datadog API key: ")
+					apiKey, err = promptSecret(c.App.Reader, c.App.ErrWriter, "Datadog API key: ")
 					if err != nil {
 						return err
 					}
 				}
 				if strings.TrimSpace(appKey) == "" {
-					appKey, err = promptSecret("Datadog APP key: ")
+					appKey, err = promptSecret(c.App.Reader, c.App.ErrWriter, "Datadog APP key: ")
 					if err != nil {
 						return err
 					}
@@ -91,7 +95,7 @@ func authLogin() *cli.Command {
 					if strings.TrimSpace(siteDefault) == "" {
 						siteDefault = auth.DefaultSite
 					}
-					site, err = promptLine("Datadog site", siteDefault)
+					site, err = promptLine(c.App.Reader, c.App.ErrWriter, "Datadog site", siteDefault)
 					if err != nil {
 						return err
 					}
@@ -103,6 +107,9 @@ func authLogin() *cli.Command {
 				return fmt.Errorf("both Datadog API and APP keys are required")
 			}
 
+			if err := c.Err(); err != nil {
+				return err
+			}
 			if err := store.Save(profile, creds); err != nil {
 				if errors.Is(err, auth.ErrUnavailable) {
 					return fmt.Errorf("unable to access secure credential store: %w", err)
@@ -118,18 +125,18 @@ func authLogin() *cli.Command {
 	}
 }
 
-func authStatus() *cli.Command {
+func (d Dependencies) authStatus() *cli.Command {
 	return &cli.Command{
 		Name:  "status",
 		Usage: "Show auth configuration status without exposing secrets",
 		Action: func(c *cli.Context) error {
-			output, err := parseOutputFlag(c.String("output"))
+			output, err := config.ParseOutput(c.String("output"))
 			if err != nil {
 				return err
 			}
 
 			profile := auth.NormalizeProfile(c.String("profile"))
-			store := auth.NewKeyringStore()
+			store := d.Store
 
 			var stored auth.Credentials
 			storeAvailable := true
@@ -147,13 +154,10 @@ func authStatus() *cli.Command {
 				return err
 			}
 
-			cliAPI := strings.TrimSpace(c.String("dd-api-key"))
-			cliAPP := strings.TrimSpace(c.String("dd-app-key"))
-			cliSite := strings.TrimSpace(c.String("site"))
-
-			apiSet, apiSource := resolvedField(cliAPI, stored.APIKey, storeHasCreds, "flag_or_env")
-			appSet, appSource := resolvedField(cliAPP, stored.AppKey, storeHasCreds, "flag_or_env")
-			siteValue, siteSource := resolvedSite(cliSite, stored.Site, storeHasCreds)
+			if !storeHasCreds {
+				stored = auth.Credentials{}
+			}
+			cfg, sources := config.Resolve(globalFlags(c), stored)
 
 			status := authStatusOutput{
 				Profile: profile,
@@ -168,12 +172,12 @@ func authStatus() *cli.Command {
 					Site:           strings.TrimSpace(stored.Site),
 				},
 				Effective: effectiveStatus{
-					APIKeySet:  apiSet,
-					AppKeySet:  appSet,
-					Site:       siteValue,
-					APIKeyFrom: apiSource,
-					AppKeyFrom: appSource,
-					SiteFrom:   siteSource,
+					APIKeySet:  cfg.DDAPIKey != "",
+					AppKeySet:  cfg.DDAppKey != "",
+					Site:       cfg.Site,
+					APIKeyFrom: sources.APIKeyFrom,
+					AppKeyFrom: sources.AppKeyFrom,
+					SiteFrom:   sources.SiteFrom,
 				},
 			}
 
@@ -216,13 +220,16 @@ func authStatus() *cli.Command {
 	}
 }
 
-func authLogout() *cli.Command {
+func (d Dependencies) authLogout() *cli.Command {
 	return &cli.Command{
 		Name:  "logout",
 		Usage: "Delete persisted Datadog credentials from the OS keychain",
 		Action: func(c *cli.Context) error {
+			if err := c.Err(); err != nil {
+				return err
+			}
 			profile := auth.NormalizeProfile(c.String("profile"))
-			store := auth.NewKeyringStore()
+			store := d.Store
 
 			err := store.Delete(profile)
 			if errors.Is(err, auth.ErrNotFound) {
@@ -293,17 +300,21 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func stdinFD() (int, error) {
+func stdinFD(in io.Reader) (int, error) {
+	file, ok := in.(*os.File)
+	if !ok {
+		return 0, fmt.Errorf("interactive prompt requires a terminal; use --non-interactive with key flags")
+	}
 	const maxInt = int(^uint(0) >> 1)
-	fd := os.Stdin.Fd()
+	fd := file.Fd()
 	if fd > uintptr(maxInt) {
 		return 0, fmt.Errorf("stdin file descriptor value out of range")
 	}
 	return int(fd), nil
 }
 
-func promptSecret(prompt string) (string, error) {
-	fd, err := stdinFD()
+func promptSecret(in io.Reader, out io.Writer, prompt string) (string, error) {
+	fd, err := stdinFD(in)
 	if err != nil {
 		return "", err
 	}
@@ -311,17 +322,21 @@ func promptSecret(prompt string) (string, error) {
 		return "", fmt.Errorf("interactive prompt requires a terminal; use --non-interactive with key flags")
 	}
 
-	fmt.Fprint(os.Stderr, prompt)
+	if _, err := fmt.Fprint(out, prompt); err != nil {
+		return "", err
+	}
 	secret, err := term.ReadPassword(fd)
-	fmt.Fprintln(os.Stderr)
+	if _, writeErr := fmt.Fprintln(out); writeErr != nil {
+		return "", writeErr
+	}
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(secret)), nil
 }
 
-func promptLine(label, defaultValue string) (string, error) {
-	fd, err := stdinFD()
+func promptLine(in io.Reader, out io.Writer, label, defaultValue string) (string, error) {
+	fd, err := stdinFD(in)
 	if err != nil {
 		return "", err
 	}
@@ -330,12 +345,15 @@ func promptLine(label, defaultValue string) (string, error) {
 	}
 
 	if strings.TrimSpace(defaultValue) != "" {
-		fmt.Fprintf(os.Stderr, "%s [%s]: ", label, strings.TrimSpace(defaultValue))
+		_, err = fmt.Fprintf(out, "%s [%s]: ", label, strings.TrimSpace(defaultValue))
 	} else {
-		fmt.Fprintf(os.Stderr, "%s: ", label)
+		_, err = fmt.Fprintf(out, "%s: ", label)
+	}
+	if err != nil {
+		return "", err
 	}
 
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, err := bufio.NewReader(in).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
@@ -344,36 +362,6 @@ func promptLine(label, defaultValue string) (string, error) {
 		return strings.TrimSpace(defaultValue), nil
 	}
 	return line, nil
-}
-
-func parseOutputFlag(v string) (string, error) {
-	out := strings.ToLower(strings.TrimSpace(v))
-	switch out {
-	case "pretty", "json":
-		return out, nil
-	default:
-		return "", fmt.Errorf("invalid --output: %q (expected pretty|json)", out)
-	}
-}
-
-func resolvedField(cliValue, storeValue string, storeHasValue bool, cliSource string) (bool, string) {
-	if strings.TrimSpace(cliValue) != "" {
-		return true, cliSource
-	}
-	if storeHasValue && strings.TrimSpace(storeValue) != "" {
-		return true, "store"
-	}
-	return false, "missing"
-}
-
-func resolvedSite(cliValue, storeValue string, storeHasValue bool) (string, string) {
-	if strings.TrimSpace(cliValue) != "" {
-		return strings.TrimSpace(cliValue), "flag_or_env"
-	}
-	if storeHasValue && strings.TrimSpace(storeValue) != "" {
-		return strings.TrimSpace(storeValue), "store"
-	}
-	return auth.DefaultSite, "default"
 }
 
 func setString(v bool) string {

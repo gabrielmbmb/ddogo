@@ -147,7 +147,7 @@ ddogo spans search --query 'service:api' --with-logs \
 **429 handling when using `--with-logs`:**
 
 - `--logs-rate-limit-mode skip` (default): after a 429, skip log enrichment for remaining not-yet-processed spans and continue returning spans.
-- `--logs-rate-limit-mode wait`: on 429, wait `--logs-rate-limit-wait` and retry up to `--logs-rate-limit-max-waits` times.
+- `--logs-rate-limit-mode wait`: on 429, wait `--logs-rate-limit-wait` and retry up to `--logs-rate-limit-max-waits` times per span. If `Retry-After` exceeds the configured wait, report a nonfatal enrichment failure instead of extending the wait or retrying too early.
 
 In both modes, spans are still returned. Per-span enrichment failures are exposed in `logs_error` (JSON output) and warnings are printed to `stderr`.
 
@@ -326,6 +326,41 @@ ddogo monitors create --request-file monitor.json --output json
 | `--dd-app-key` | Datadog application key | `$DD_APP_KEY` |
 | `--site` | Datadog site | `datadoghq.com` |
 | `--profile` | Credential profile from secure store | `default` |
+
+## Reliability
+
+Searches retry transient failures (`408`, `429`, `5xx`, and transport timeouts)
+with jittered backoff and a five-second cumulative retry-sleep budget per API
+request. If `Retry-After` cannot fit the remaining budget, the API error is returned
+without retrying early. This budget excludes HTTP attempt time; each attempt has
+a 30-second timeout. Authentication and other client errors are not retried.
+Monitor creation is not automatically replayed; check Datadog before manually
+retrying an ambiguous failure to avoid duplicates. Authenticated API requests do
+not follow redirects, preventing credential forwarding and redirected writes.
+
+Correlated-log enrichment uses the documented `skip`/`wait` policy without an
+additional layer of transport-level 429 retries. Ctrl-C uses normal process
+interrupt termination, including while blocked on input or credential storage.
+Results go to stdout; diagnostics go to stderr.
+
+Exit codes: `0` for normal completion (including nonfatal warnings), `1` for
+validation, authentication, API, output, or context-cancellation failures, and `3`
+for an unknown command. OS interrupts use the platform's signal exit status
+(typically `130` for Ctrl-C in Unix shells). Optional enrichment failures remain
+nonfatal and are exposed through diagnostics and `logs_error`.
+
+## Development
+
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+make fmt
+make lint
+```
+
+See [architecture](docs/architecture.md) for package responsibilities and the
+simplicity-first conventions, and [changelog](CHANGELOG.md) for behavior changes.
 
 ## License
 

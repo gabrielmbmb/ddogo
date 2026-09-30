@@ -117,7 +117,7 @@ func (c *spansClient) Search(ctx context.Context, req SearchSpansRequest) (Spans
 		}
 
 		var resp spansListResponse
-		if err := c.client.doJSON(ctx, http.MethodPost, spansSearchEndpoint, body, &resp); err != nil {
+		if err := c.client.doJSON(ctx, http.MethodPost, spansSearchEndpoint, body, &resp, retryTransient); err != nil {
 			return SpansSearchResult{}, err
 		}
 

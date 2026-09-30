@@ -9,26 +9,25 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/config"
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
 // Monitors returns the top-level "monitors" command with its subcommands.
-func Monitors() *cli.Command {
+func (d Dependencies) Monitors() *cli.Command {
 	return &cli.Command{
 		Name:    "monitors",
 		Aliases: []string{"monitor"},
 		Usage:   "List and create Datadog monitors",
 		Subcommands: []*cli.Command{
-			monitorsList(),
-			monitorsAlerts(),
-			monitorsCreate(),
+			d.monitorsList(),
+			d.monitorsAlerts(),
+			d.monitorsCreate(),
 		},
 	}
 }
 
-func monitorsList() *cli.Command {
+func (d Dependencies) monitorsList() *cli.Command {
 	return &cli.Command{
 		Name:        "list",
 		Usage:       "List monitors in your Datadog organization",
@@ -81,7 +80,7 @@ func monitorsList() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -91,7 +90,7 @@ func monitorsList() *cli.Command {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -101,12 +100,12 @@ func monitorsList() *cli.Command {
 				return err
 			}
 
-			return output.RenderMonitors(os.Stdout, cfg.Output, result.Monitors)
+			return output.RenderMonitors(c.App.Writer, cfg.Output, result.Monitors)
 		},
 	}
 }
 
-func monitorsCreate() *cli.Command {
+func (d Dependencies) monitorsCreate() *cli.Command {
 	return &cli.Command{
 		Name:        "create",
 		Usage:       "Create a Datadog monitor",
@@ -272,7 +271,7 @@ func monitorsCreate() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -282,7 +281,7 @@ func monitorsCreate() *cli.Command {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -292,7 +291,7 @@ func monitorsCreate() *cli.Command {
 				return err
 			}
 
-			return output.RenderMonitor(os.Stdout, cfg.Output, monitor)
+			return output.RenderMonitor(c.App.Writer, cfg.Output, monitor)
 		},
 	}
 }
@@ -360,7 +359,7 @@ func listMonitorsRequestFromFlags(c *cli.Context) (datadog.ListMonitorsRequest, 
 
 func monitorCreateBodyFromFlags(c *cli.Context) (map[string]any, error) {
 	if c.String("request-json") != "" || c.String("request-file") != "" {
-		return readJSONMapFromFlags(c.String("request-json"), c.String("request-file"), "request")
+		return readJSONMapFromFlags(c.String("request-json"), c.String("request-file"), "request", c.App.Reader)
 	}
 
 	name := strings.TrimSpace(c.String("name"))
@@ -419,7 +418,7 @@ func monitorCreateBodyFromFlags(c *cli.Context) (map[string]any, error) {
 }
 
 func monitorOptionsFromFlags(c *cli.Context) (map[string]any, error) {
-	options, err := readJSONMapFromFlags(c.String("options-json"), c.String("options-file"), "options")
+	options, err := readJSONMapFromFlags(c.String("options-json"), c.String("options-file"), "options", c.App.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -552,7 +551,7 @@ func monitorNestedMap(parent map[string]any, key string) (map[string]any, error)
 	return asMap, nil
 }
 
-func readJSONMapFromFlags(rawJSON, filePath, label string) (map[string]any, error) {
+func readJSONMapFromFlags(rawJSON, filePath, label string, in io.Reader) (map[string]any, error) {
 	rawJSON = strings.TrimSpace(rawJSON)
 	filePath = strings.TrimSpace(filePath)
 	if rawJSON != "" && filePath != "" {
@@ -566,7 +565,7 @@ func readJSONMapFromFlags(rawJSON, filePath, label string) (map[string]any, erro
 	if rawJSON != "" {
 		data = []byte(rawJSON)
 	} else {
-		contents, err := readJSONInputFile(filePath)
+		contents, err := readJSONInputFile(filePath, in)
 		if err != nil {
 			return nil, err
 		}
@@ -583,9 +582,9 @@ func readJSONMapFromFlags(rawJSON, filePath, label string) (map[string]any, erro
 	return out, nil
 }
 
-func readJSONInputFile(path string) ([]byte, error) {
+func readJSONInputFile(path string, in io.Reader) ([]byte, error) {
 	if path == "-" {
-		data, err := io.ReadAll(os.Stdin)
+		data, err := io.ReadAll(in)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read JSON from stdin: %w", err)
 		}

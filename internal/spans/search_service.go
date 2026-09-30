@@ -99,6 +99,9 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return SearchResponse{}, err
+	}
 	spansResult, err := s.spansClient.Search(ctx, datadog.SearchSpansRequest{
 		Query: req.Query,
 		From:  req.From,
@@ -117,7 +120,7 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 	}
 
 	s.enrichSpansWithLogs(ctx, &response, req)
-	return response, nil
+	return response, ctx.Err()
 }
 
 type spanLogsFetchResult struct {
@@ -212,8 +215,13 @@ func (s *SearchService) enrichSpansWithLogs(ctx context.Context, response *Searc
 		}()
 	}
 
+dispatch:
 	for idx := range response.Spans {
-		jobs <- idx
+		select {
+		case jobs <- idx:
+		case <-ctx.Done():
+			break dispatch
+		}
 	}
 	close(jobs)
 
@@ -263,11 +271,12 @@ func (s *SearchService) searchLogsWithStrategy(ctx context.Context, req SearchRe
 	attempt := 0
 	for {
 		result, err := s.logsClient.Search(ctx, datadog.SearchLogsRequest{
-			Query: query,
-			From:  req.LogsFrom,
-			To:    req.LogsTo,
-			Limit: req.LogsLimit,
-			Sort:  "timestamp",
+			Query:                query,
+			From:                 req.LogsFrom,
+			To:                   req.LogsTo,
+			Limit:                req.LogsLimit,
+			Sort:                 "timestamp",
+			SkipRateLimitRetries: true,
 		})
 		if err == nil {
 			return result.Logs, nil
@@ -281,6 +290,10 @@ func (s *SearchService) searchLogsWithStrategy(ctx context.Context, req SearchRe
 		}
 		if attempt >= maxWaits {
 			return nil, fmt.Errorf("%w (wait mode exhausted after %d wait attempts)", err, maxWaits)
+		}
+		var apiErr *datadog.APIError
+		if errors.As(err, &apiErr) && apiErr.RetryAfter > waitDuration {
+			return nil, fmt.Errorf("%w (Retry-After %s exceeds logs rate limit wait %s)", err, apiErr.RetryAfter, waitDuration)
 		}
 		if err := sleepContext(ctx, waitDuration); err != nil {
 			return nil, err

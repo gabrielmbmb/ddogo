@@ -39,6 +39,12 @@ Probable future scope:
 ## Engineering standards
 
 - Prefer small, focused modules and pure functions where practical.
+- Keep the architecture idiomatic Go and as simple as possible. Add a package,
+  interface, or layer only to solve a current problem; avoid pass-through
+  services, speculative abstractions, and code added solely to match a diagram.
+- Use explicit dependencies and configured CLI streams rather than global clients
+  or process-global I/O in command handlers. See `docs/architecture.md` for the
+  current package boundaries.
 - Use explicit types and schemas for API request/response boundaries.
 - Keep command handlers thin; move business logic to reusable services.
 - Add tests for parsing, filtering, pagination, and error handling paths.

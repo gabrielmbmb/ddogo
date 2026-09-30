@@ -141,7 +141,7 @@ func (c *metricsClient) Query(ctx context.Context, req QueryMetricsRequest) (Met
 	query.Set("query", req.Query)
 
 	var resp MetricsQueryResult
-	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, metricsQueryEndpoint, query, nil, &resp); err != nil {
+	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, metricsQueryEndpoint, query, nil, &resp, retryTransient); err != nil {
 		return MetricsQueryResult{}, err
 	}
 
@@ -182,7 +182,7 @@ func (c *metricsClient) List(ctx context.Context, req ListMetricsRequest) (Metri
 		}
 
 		var resp metricsListV2Response
-		if err := c.client.doJSONWithQuery(ctx, http.MethodGet, metricsListV2Endpoint, query, nil, &resp); err != nil {
+		if err := c.client.doJSONWithQuery(ctx, http.MethodGet, metricsListV2Endpoint, query, nil, &resp, retryTransient); err != nil {
 			return MetricsListResult{}, err
 		}
 
@@ -218,7 +218,7 @@ func (c *metricsClient) GetMetadata(ctx context.Context, metricName string) (Met
 	path := metricsV1Endpoint + "/" + url.PathEscape(metricName)
 
 	var resp MetricMetadata
-	if err := c.client.doJSON(ctx, http.MethodGet, path, nil, &resp); err != nil {
+	if err := c.client.doJSON(ctx, http.MethodGet, path, nil, &resp, retryTransient); err != nil {
 		return MetricMetadata{}, err
 	}
 	resp.MetricName = metricName
@@ -234,7 +234,7 @@ func (c *metricsClient) ListTags(ctx context.Context, metricName string) (Metric
 	path := metricsListV2Endpoint + "/" + url.PathEscape(metricName) + "/all-tags"
 
 	var resp metricAllTagsV2Response
-	if err := c.client.doJSON(ctx, http.MethodGet, path, nil, &resp); err != nil {
+	if err := c.client.doJSON(ctx, http.MethodGet, path, nil, &resp, retryTransient); err != nil {
 		return MetricAllTagsResult{}, err
 	}
 

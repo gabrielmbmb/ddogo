@@ -207,7 +207,7 @@ func (c *errorTrackingClient) Search(ctx context.Context, req SearchIssuesReques
 	}
 
 	var resp issuesSearchResponseEnvelope
-	if err := c.client.doJSONWithQuery(ctx, http.MethodPost, errorTrackingIssuesSearchEndpoint, query, body, &resp); err != nil {
+	if err := c.client.doJSONWithQuery(ctx, http.MethodPost, errorTrackingIssuesSearchEndpoint, query, body, &resp, retryTransient); err != nil {
 		return IssuesSearchResult{}, err
 	}
 
@@ -265,7 +265,7 @@ func (c *errorTrackingClient) GetIssue(ctx context.Context, issueID string, incl
 
 	var resp issueResponseEnvelope
 	path := fmt.Sprintf("%s/%s", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, path, query, nil, &resp); err != nil {
+	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, path, query, nil, &resp, retryTransient); err != nil {
 		return ErrorTrackingIssue{}, err
 	}
 	return mapIssueResource(resp.Data), nil
@@ -297,7 +297,7 @@ func (c *errorTrackingClient) UpdateIssueState(ctx context.Context, issueID, sta
 
 	var resp issueResponseEnvelope
 	path := fmt.Sprintf("%s/%s/state", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	if err := c.client.doJSON(ctx, http.MethodPut, path, body, &resp); err != nil {
+	if err := c.client.doJSON(ctx, http.MethodPut, path, body, &resp, retryTransient); err != nil {
 		return ErrorTrackingIssue{}, err
 	}
 	return mapIssueResource(resp.Data), nil
@@ -322,7 +322,7 @@ func (c *errorTrackingClient) UpdateIssueAssignee(ctx context.Context, issueID, 
 
 	var resp issueResponseEnvelope
 	path := fmt.Sprintf("%s/%s/assignee", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	if err := c.client.doJSON(ctx, http.MethodPut, path, body, &resp); err != nil {
+	if err := c.client.doJSON(ctx, http.MethodPut, path, body, &resp, retryTransient); err != nil {
 		return ErrorTrackingIssue{}, err
 	}
 	return mapIssueResource(resp.Data), nil
@@ -335,7 +335,7 @@ func (c *errorTrackingClient) DeleteIssueAssignee(ctx context.Context, issueID s
 	}
 
 	path := fmt.Sprintf("%s/%s/assignee", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	return c.client.doJSON(ctx, http.MethodDelete, path, nil, nil)
+	return c.client.doJSON(ctx, http.MethodDelete, path, nil, nil, retryTransient)
 }
 
 func mapIssueResource(resource issueResource) ErrorTrackingIssue {

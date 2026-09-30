@@ -3,34 +3,32 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/config"
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
 // Errors returns the top-level "errors" command with its subcommands.
-func Errors() *cli.Command {
+func (d Dependencies) Errors() *cli.Command {
 	return &cli.Command{
 		Name:    "errors",
 		Aliases: []string{"error"},
 		Usage:   "Search and manage Datadog Error Tracking issues",
 		Subcommands: []*cli.Command{
-			errorSearch(),
-			errorGet(),
-			errorSetState(),
-			errorAssign(),
-			errorUnassign(),
+			d.errorSearch(),
+			d.errorGet(),
+			d.errorSetState(),
+			d.errorAssign(),
+			d.errorUnassign(),
 		},
 	}
 }
 
-func errorSearch() *cli.Command {
+func (d Dependencies) errorSearch() *cli.Command {
 	return &cli.Command{
 		Name:        "search",
 		Usage:       "Search error tracking issues in a time window",
@@ -76,7 +74,7 @@ func errorSearch() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -88,13 +86,13 @@ func errorSearch() *cli.Command {
 				return fmt.Errorf("--limit must be <= %d", datadog.MaxIssuesSearchLimit)
 			}
 
-			now := time.Now().UTC()
+			now := d.Now().UTC()
 			from, to, err := parseWindow(now, c.String("from"), c.String("to"), "from", "to")
 			if err != nil {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -113,12 +111,12 @@ func errorSearch() *cli.Command {
 				return err
 			}
 
-			return output.RenderIssueSearchResults(os.Stdout, cfg.Output, result.Issues)
+			return output.RenderIssueSearchResults(c.App.Writer, cfg.Output, result.Issues)
 		},
 	}
 }
 
-func errorGet() *cli.Command {
+func (d Dependencies) errorGet() *cli.Command {
 	return &cli.Command{
 		Name:        "get",
 		Usage:       "Get details of an error tracking issue",
@@ -131,7 +129,7 @@ func errorGet() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -141,7 +139,7 @@ func errorGet() *cli.Command {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -151,12 +149,12 @@ func errorGet() *cli.Command {
 				return err
 			}
 
-			return output.RenderIssue(os.Stdout, cfg.Output, issue)
+			return output.RenderIssue(c.App.Writer, cfg.Output, issue)
 		},
 	}
 }
 
-func errorSetState() *cli.Command {
+func (d Dependencies) errorSetState() *cli.Command {
 	return &cli.Command{
 		Name:        "set-state",
 		Usage:       "Update the state of an error tracking issue",
@@ -170,7 +168,7 @@ func errorSetState() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -180,7 +178,7 @@ func errorSetState() *cli.Command {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -190,12 +188,12 @@ func errorSetState() *cli.Command {
 				return err
 			}
 
-			return output.RenderIssue(os.Stdout, cfg.Output, issue)
+			return output.RenderIssue(c.App.Writer, cfg.Output, issue)
 		},
 	}
 }
 
-func errorAssign() *cli.Command {
+func (d Dependencies) errorAssign() *cli.Command {
 	return &cli.Command{
 		Name:        "assign",
 		Usage:       "Assign an issue to a user",
@@ -210,7 +208,7 @@ func errorAssign() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -220,7 +218,7 @@ func errorAssign() *cli.Command {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -230,19 +228,19 @@ func errorAssign() *cli.Command {
 				return err
 			}
 
-			return output.RenderIssue(os.Stdout, cfg.Output, issue)
+			return output.RenderIssue(c.App.Writer, cfg.Output, issue)
 		},
 	}
 }
 
-func errorUnassign() *cli.Command {
+func (d Dependencies) errorUnassign() *cli.Command {
 	return &cli.Command{
 		Name:        "unassign",
 		Usage:       "Remove the assignee from an issue",
 		ArgsUsage:   "<issue-id>",
 		Description: "Example:\n  ddogo errors unassign c1726a66-1f64-11ee-b338-da7ad0900002",
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -252,7 +250,7 @@ func errorUnassign() *cli.Command {
 				return err
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -262,11 +260,11 @@ func errorUnassign() *cli.Command {
 			}
 
 			if cfg.Output == "json" {
-				enc := json.NewEncoder(os.Stdout)
+				enc := json.NewEncoder(c.App.Writer)
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]any{"issue_id": issueID, "assignee_removed": true})
 			}
-			_, err = fmt.Fprintf(os.Stdout, "removed assignee from issue %s\n", issueID)
+			_, err = fmt.Fprintf(c.App.Writer, "removed assignee from issue %s\n", issueID)
 			return err
 		},
 	}

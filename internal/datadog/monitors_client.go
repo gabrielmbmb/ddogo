@@ -77,35 +77,6 @@ type MonitorGroupState struct {
 	Status          string `json:"status,omitempty"`
 }
 
-// MonitorAlert is a normalized monitor alert/group entry used by CLI renderers.
-type MonitorAlert struct {
-	MonitorID       int64                 `json:"monitor_id,omitempty"`
-	MonitorName     string                `json:"monitor_name,omitempty"`
-	MonitorType     string                `json:"monitor_type,omitempty"`
-	Query           string                `json:"query,omitempty"`
-	Message         string                `json:"message,omitempty"`
-	Tags            []string              `json:"tags,omitempty"`
-	Priority        *int64                `json:"priority,omitempty"`
-	OverallState    string                `json:"overall_state,omitempty"`
-	Group           string                `json:"group,omitempty"`
-	Status          string                `json:"status,omitempty"`
-	RaisedAtTS      int64                 `json:"raised_at_ts,omitempty"`
-	LastTriggeredTS int64                 `json:"last_triggered_ts,omitempty"`
-	LastNoDataTS    int64                 `json:"last_nodata_ts,omitempty"`
-	LastNotifiedTS  int64                 `json:"last_notified_ts,omitempty"`
-	LastResolvedTS  int64                 `json:"last_resolved_ts,omitempty"`
-	Investigation   *MonitorInvestigation `json:"investigation,omitempty"`
-}
-
-// MonitorInvestigation contains best-effort search context for investigating a
-// monitor alert with logs/spans/RUM/Error Tracking data.
-type MonitorInvestigation struct {
-	Source string `json:"source,omitempty"`
-	Query  string `json:"query,omitempty"`
-	From   string `json:"from,omitempty"`
-	To     string `json:"to,omitempty"`
-}
-
 // CreateMonitorRequest holds the body for POST /api/v1/monitor.
 type CreateMonitorRequest struct {
 	Name            string
@@ -162,7 +133,7 @@ func (c *monitorsClient) Create(ctx context.Context, req CreateMonitorRequest) (
 	}
 
 	var resp Monitor
-	if err := c.client.doJSON(ctx, http.MethodPost, monitorsEndpoint, body, &resp); err != nil {
+	if err := c.client.doJSON(ctx, http.MethodPost, monitorsEndpoint, body, &resp, noRetries); err != nil {
 		return Monitor{}, err
 	}
 	return resp, nil
@@ -209,7 +180,7 @@ func (c *monitorsClient) List(ctx context.Context, req ListMonitorsRequest) (Mon
 	}
 
 	var monitors []Monitor
-	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, monitorsEndpoint, query, nil, &monitors); err != nil {
+	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, monitorsEndpoint, query, nil, &monitors, retryTransient); err != nil {
 		return MonitorsListResult{}, err
 	}
 

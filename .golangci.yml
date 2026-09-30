@@ -11,10 +11,10 @@ formatters:
   settings:
     gofumpt:
       extra-rules: true
-      module-path: github.com/supersonik/ddogo
+      module-path: github.com/gabrielmbmb/ddogo
     goimports:
       local-prefixes:
-        - github.com/supersonik/ddogo
+        - github.com/gabrielmbmb/ddogo
 
 linters:
   default: standard

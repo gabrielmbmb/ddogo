@@ -2,13 +2,11 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/config"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 	spansvc "github.com/gabrielmbmb/ddogo/internal/spans"
 )
@@ -16,18 +14,18 @@ import (
 const defaultLogsLimit = 20
 
 // Spans returns the top-level "spans" command with its subcommands.
-func Spans() *cli.Command {
+func (d Dependencies) Spans() *cli.Command {
 	return &cli.Command{
 		Name:    "spans",
 		Aliases: []string{"trace", "traces"},
 		Usage:   "Search Datadog spans",
 		Subcommands: []*cli.Command{
-			spansSearch(),
+			d.spansSearch(),
 		},
 	}
 }
 
-func spansSearch() *cli.Command {
+func (d Dependencies) spansSearch() *cli.Command {
 	return &cli.Command{
 		Name:        "search",
 		Usage:       "Search spans in a time window",
@@ -92,7 +90,7 @@ func spansSearch() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			cfg, err := config.LoadGlobal(c)
+			cfg, err := d.loadGlobal(c)
 			if err != nil {
 				return err
 			}
@@ -101,7 +99,7 @@ func spansSearch() *cli.Command {
 				return fmt.Errorf("--limit must be > 0")
 			}
 
-			now := time.Now().UTC()
+			now := d.Now().UTC()
 			from, to, err := parseWindow(now, c.String("from"), c.String("to"), "from", "to")
 			if err != nil {
 				return err
@@ -140,10 +138,10 @@ func spansSearch() *cli.Command {
 				if mode == "" {
 					mode = spansvc.DefaultLogsRateLimitMode
 				}
-				_, _ = fmt.Fprintf(os.Stderr, "info: --with-logs enabled; may perform up to %d additional logs requests (429 mode: %s)\n", c.Int("limit"), mode)
+				_, _ = fmt.Fprintf(c.App.ErrWriter, "info: --with-logs enabled; may perform up to %d additional logs requests (429 mode: %s)\n", c.Int("limit"), mode)
 			}
 
-			ddClient, err := newDatadogClient(cfg)
+			ddClient, err := d.NewClient(cfg)
 			if err != nil {
 				return err
 			}
@@ -168,10 +166,10 @@ func spansSearch() *cli.Command {
 			}
 
 			for _, warning := range result.Warnings {
-				_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+				_, _ = fmt.Fprintf(c.App.ErrWriter, "warning: %s\n", warning)
 			}
 
-			return output.RenderSpans(os.Stdout, cfg.Output, result.Spans)
+			return output.RenderSpans(c.App.Writer, cfg.Output, result.Spans)
 		},
 	}
 }
