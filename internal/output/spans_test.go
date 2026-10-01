@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
+	"github.com/gabrielmbmb/ddogo/internal/spans"
 )
 
 func TestRenderSpansPrettyTable(t *testing.T) {
@@ -14,7 +15,7 @@ func TestRenderSpansPrettyTable(t *testing.T) {
 
 	d := 1250.0
 	var b bytes.Buffer
-	err := RenderSpans(&b, "pretty", []datadog.SpanEntry{
+	err := RenderSpans(&b, "pretty", []spans.Entry{
 		{
 			StartTimestamp: "2026-02-25T08:00:00Z",
 			DurationMS:     &d,
@@ -43,14 +44,14 @@ func TestRenderSpansPrettyWithLogs(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderSpans(&b, "pretty", []datadog.SpanEntry{
+	err := RenderSpans(&b, "pretty", []spans.Entry{
 		{
 			StartTimestamp: "2026-02-25T08:00:00Z",
 			Service:        "api",
 			ResourceName:   "GET /users",
 			TraceID:        "trace-1",
 			SpanID:         "span-1",
-			Logs: []datadog.LogEntry{{
+			Logs: []logs.Entry{{
 				Timestamp: "2026-02-25T08:00:01Z",
 				Message:   "line1\nline2",
 			}},
@@ -73,7 +74,7 @@ func TestRenderSpansPrettyWithLogsError(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderSpans(&b, "pretty", []datadog.SpanEntry{{
+	err := RenderSpans(&b, "pretty", []spans.Entry{{
 		StartTimestamp: "2026-02-25T08:00:00Z",
 		Service:        "api",
 		ResourceName:   "GET /users",
@@ -95,11 +96,11 @@ func TestRenderSpansJSON(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderSpans(&b, "json", []datadog.SpanEntry{{
+	err := RenderSpans(&b, "json", []spans.Entry{{
 		ID:        "span-1",
 		TraceID:   "trace-1",
 		SpanID:    "s-1",
-		Logs:      []datadog.LogEntry{{Timestamp: "2026-02-25T08:00:00Z", Message: "hello"}},
+		Logs:      []logs.Entry{{Timestamp: "2026-02-25T08:00:00Z", Message: "hello"}},
 		LogsError: "",
 	}})
 	if err != nil {

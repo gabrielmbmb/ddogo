@@ -15,22 +15,22 @@ func TestRetryPolicies(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name       string
-		policy     retryPolicy
+		policy     RetryPolicy
 		status     int
 		maxRetries int
 		wantCalls  int64
 	}{
-		{"search rate limit", retryTransient, 429, 2, 3},
-		{"search timeout", retryTransient, 408, 1, 2},
-		{"search upstream failure", retryTransient, 503, 1, 2},
-		{"bad request", retryTransient, 400, 2, 1},
-		{"unauthorized", retryTransient, 401, 2, 1},
-		{"forbidden", retryTransient, 403, 2, 1},
-		{"not found", retryTransient, 404, 2, 1},
-		{"creation never replayed", noRetries, 503, 2, 1},
-		{"enrichment owns rate limits", retryExceptRateLimit, 429, 2, 1},
-		{"enrichment retries upstream failure", retryExceptRateLimit, 503, 1, 2},
-		{"retries disabled", retryTransient, 503, -1, 1},
+		{"search rate limit", RetryTransient, 429, 2, 3},
+		{"search timeout", RetryTransient, 408, 1, 2},
+		{"search upstream failure", RetryTransient, 503, 1, 2},
+		{"bad request", RetryTransient, 400, 2, 1},
+		{"unauthorized", RetryTransient, 401, 2, 1},
+		{"forbidden", RetryTransient, 403, 2, 1},
+		{"not found", RetryTransient, 404, 2, 1},
+		{"creation never replayed", NoRetries, 503, 2, 1},
+		{"enrichment owns rate limits", RetryExceptRateLimit, 429, 2, 1},
+		{"enrichment retries upstream failure", RetryExceptRateLimit, 503, 1, 2},
+		{"retries disabled", RetryTransient, 503, -1, 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -45,7 +45,7 @@ func TestRetryPolicies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = client.doJSON(context.Background(), http.MethodPost, "/test", nil, nil, tt.policy)
+			err = client.DoJSON(context.Background(), http.MethodPost, "/test", nil, nil, tt.policy)
 			var apiErr *APIError
 			if !errors.As(err, &apiErr) || apiErr.StatusCode != tt.status || calls.Load() != tt.wantCalls {
 				t.Fatalf("unexpected error or attempts: %v (calls=%d)", err, calls.Load())
@@ -118,7 +118,7 @@ func TestRetryAfterCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- client.doJSON(ctx, http.MethodGet, "/test", nil, nil, retryTransient) }()
+	go func() { done <- client.DoJSON(ctx, http.MethodGet, "/test", nil, nil, RetryTransient) }()
 	select {
 	case <-requested:
 		cancel()
@@ -143,7 +143,7 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func TestTransportTimeoutReplaySafety(t *testing.T) {
 	t.Parallel()
-	for _, policy := range []retryPolicy{noRetries, retryTransient} {
+	for _, policy := range []RetryPolicy{NoRetries, RetryTransient} {
 		calls := 0
 		client, err := NewClient(ClientConfig{
 			APIKey: "test-api", AppKey: "test-app", MaxRetries: 2, InitialBackoff: time.Nanosecond,
@@ -155,32 +155,14 @@ func TestTransportTimeoutReplaySafety(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = client.doJSON(context.Background(), http.MethodPost, "/test", nil, nil, policy)
+		err = client.DoJSON(context.Background(), http.MethodPost, "/test", nil, nil, policy)
 		want := 1
-		if policy == retryTransient {
+		if policy == RetryTransient {
 			want = 3
 		}
 		if !errors.Is(err, context.DeadlineExceeded) || calls != want {
 			t.Fatalf("unexpected timeout attempts: %v (calls=%d)", err, calls)
 		}
-	}
-}
-
-func TestMonitorCreationIsNotReplayed(t *testing.T) {
-	t.Parallel()
-	var calls atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer server.Close()
-	client, err := NewClient(ClientConfig{APIKey: "test-api", AppKey: "test-app", APIBaseURL: server.URL, HTTPClient: server.Client()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.Monitors().Create(context.Background(), CreateMonitorRequest{Name: "Test", Type: "log alert", Query: "logs(*) > 0"})
-	if err == nil || calls.Load() != 1 {
-		t.Fatalf("creation was replayed: %v (calls=%d)", err, calls.Load())
 	}
 }
 
@@ -195,7 +177,7 @@ func TestAPIErrorRetainsRetryAfter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = client.doJSON(context.Background(), http.MethodGet, "/test", nil, nil, retryTransient)
+	err = client.DoJSON(context.Background(), http.MethodGet, "/test", nil, nil, RetryTransient)
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) || apiErr.RetryAfter != 7*time.Second {
 		t.Fatalf("missing Retry-After metadata: %v", err)

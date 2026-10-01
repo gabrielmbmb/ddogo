@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/monitors"
 )
 
@@ -14,14 +13,14 @@ func TestRenderMonitorsJSON(t *testing.T) {
 	t.Parallel()
 
 	priority := int64(2)
-	monitors := []datadog.Monitor{{ID: 123, Name: "High CPU", Type: "query alert", Priority: &priority}}
+	items := []monitors.Monitor{{ID: 123, Name: "High CPU", Type: "query alert", Priority: &priority}}
 
 	var buf bytes.Buffer
-	if err := RenderMonitors(&buf, "json", monitors); err != nil {
+	if err := RenderMonitors(&buf, "json", items); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var decoded []datadog.Monitor
+	var decoded []monitors.Monitor
 	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
 		t.Fatalf("invalid JSON output: %v", err)
 	}
@@ -38,7 +37,7 @@ func TestRenderMonitorsPretty(t *testing.T) {
 
 	priority := int64(1)
 	longQuery := "avg(last_5m):avg:system.cpu.user{env:prod,service:api,host:web01,availability-zone:us-east-1a,team:platform} by {host,service} > 80 " + strings.Repeat("x", 300)
-	monitors := []datadog.Monitor{{
+	items := []monitors.Monitor{{
 		ID:           123,
 		Name:         "High CPU",
 		Type:         "query alert",
@@ -48,7 +47,7 @@ func TestRenderMonitorsPretty(t *testing.T) {
 	}}
 
 	var buf bytes.Buffer
-	if err := RenderMonitors(&buf, "pretty", monitors); err != nil {
+	if err := RenderMonitors(&buf, "pretty", items); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -89,7 +88,7 @@ func TestRenderMonitorPretty(t *testing.T) {
 	multi := true
 	longQuery := "avg(last_5m):avg:system.cpu.user{env:prod,service:api,host:web01,availability-zone:us-east-1a,team:platform} by {host,service} > 80 " + strings.Repeat("x", 300)
 	longMessage := "CPU is high for service api on host web01 in production; investigate workload saturation and recent deploys before paging the platform owner " + strings.Repeat("y", 300)
-	monitor := datadog.Monitor{
+	monitor := monitors.Monitor{
 		ID:              123,
 		Name:            "High CPU",
 		Type:            "query alert",
@@ -118,7 +117,7 @@ func TestRenderMonitorPretty(t *testing.T) {
 func TestRenderMonitorJSON(t *testing.T) {
 	t.Parallel()
 
-	monitor := datadog.Monitor{ID: 123, Name: "High CPU", Type: "query alert"}
+	monitor := monitors.Monitor{ID: 123, Name: "High CPU", Type: "query alert"}
 	var buf bytes.Buffer
 	if err := RenderMonitor(&buf, "json", monitor); err != nil {
 		t.Fatalf("unexpected error: %v", err)

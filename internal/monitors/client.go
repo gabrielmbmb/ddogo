@@ -1,4 +1,4 @@
-package datadog
+package monitors
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 const monitorsEndpoint = "/api/v1/monitor"
@@ -17,44 +19,44 @@ const monitorsEndpoint = "/api/v1/monitor"
 // intentionally preserved as a map while the common state fields are modeled for
 // monitor alert workflows.
 type Monitor struct {
-	ID                int64             `json:"id,omitempty"`
-	Name              string            `json:"name,omitempty"`
-	Type              string            `json:"type,omitempty"`
-	Query             string            `json:"query,omitempty"`
-	Message           string            `json:"message,omitempty"`
-	Tags              []string          `json:"tags,omitempty"`
-	Priority          *int64            `json:"priority,omitempty"`
-	OverallState      string            `json:"overall_state,omitempty"`
-	DraftStatus       string            `json:"draft_status,omitempty"`
-	Created           string            `json:"created,omitempty"`
-	Modified          string            `json:"modified,omitempty"`
-	Deleted           any               `json:"deleted,omitempty"`
-	Multi             *bool             `json:"multi,omitempty"`
-	Creator           *MonitorCreator   `json:"creator,omitempty"`
-	MatchingDowntimes []MonitorDowntime `json:"matching_downtimes,omitempty"`
-	Options           map[string]any    `json:"options,omitempty"`
-	RestrictedRoles   []string          `json:"restricted_roles,omitempty"`
-	State             *MonitorState     `json:"state,omitempty"`
-	Assets            []MonitorAsset    `json:"assets,omitempty"`
+	ID                int64          `json:"id,omitempty"`
+	Name              string         `json:"name,omitempty"`
+	Type              string         `json:"type,omitempty"`
+	Query             string         `json:"query,omitempty"`
+	Message           string         `json:"message,omitempty"`
+	Tags              []string       `json:"tags,omitempty"`
+	Priority          *int64         `json:"priority,omitempty"`
+	OverallState      string         `json:"overall_state,omitempty"`
+	DraftStatus       string         `json:"draft_status,omitempty"`
+	Created           string         `json:"created,omitempty"`
+	Modified          string         `json:"modified,omitempty"`
+	Deleted           any            `json:"deleted,omitempty"`
+	Multi             *bool          `json:"multi,omitempty"`
+	Creator           *Creator       `json:"creator,omitempty"`
+	MatchingDowntimes []Downtime     `json:"matching_downtimes,omitempty"`
+	Options           map[string]any `json:"options,omitempty"`
+	RestrictedRoles   []string       `json:"restricted_roles,omitempty"`
+	State             *State         `json:"state,omitempty"`
+	Assets            []Asset        `json:"assets,omitempty"`
 }
 
-// MonitorCreator describes the user that created a monitor.
-type MonitorCreator struct {
+// Creator describes the user that created a monitor.
+type Creator struct {
 	Email  string `json:"email,omitempty"`
 	Handle string `json:"handle,omitempty"`
 	Name   string `json:"name,omitempty"`
 }
 
-// MonitorDowntime describes an active v1 downtime matching a monitor.
-type MonitorDowntime struct {
+// Downtime describes an active v1 downtime matching a monitor.
+type Downtime struct {
 	ID    int64    `json:"id,omitempty"`
 	Scope []string `json:"scope,omitempty"`
 	Start int64    `json:"start,omitempty"`
 	End   int64    `json:"end,omitempty"`
 }
 
-// MonitorAsset describes a monitor asset such as a runbook link.
-type MonitorAsset struct {
+// Asset describes a monitor asset such as a runbook link.
+type Asset struct {
 	Category     string `json:"category,omitempty"`
 	Name         string `json:"name,omitempty"`
 	ResourceKey  string `json:"resource_key,omitempty"`
@@ -62,13 +64,13 @@ type MonitorAsset struct {
 	URL          string `json:"url,omitempty"`
 }
 
-// MonitorState holds the per-group state included when group_states is requested.
-type MonitorState struct {
-	Groups map[string]MonitorGroupState `json:"groups,omitempty"`
+// State holds the per-group state included when group_states is requested.
+type State struct {
+	Groups map[string]GroupState `json:"groups,omitempty"`
 }
 
-// MonitorGroupState is the state for a single monitor group.
-type MonitorGroupState struct {
+// GroupState is the state for a single monitor group.
+type GroupState struct {
 	LastNoDataTS    int64  `json:"last_nodata_ts,omitempty"`
 	LastNotifiedTS  int64  `json:"last_notified_ts,omitempty"`
 	LastResolvedTS  int64  `json:"last_resolved_ts,omitempty"`
@@ -77,8 +79,8 @@ type MonitorGroupState struct {
 	Status          string `json:"status,omitempty"`
 }
 
-// CreateMonitorRequest holds the body for POST /api/v1/monitor.
-type CreateMonitorRequest struct {
+// CreateRequest holds the body for POST /api/v1/monitor.
+type CreateRequest struct {
 	Name            string
 	Type            string
 	Query           string
@@ -94,8 +96,8 @@ type CreateMonitorRequest struct {
 	Body map[string]any
 }
 
-// ListMonitorsRequest holds filters for GET /api/v1/monitor.
-type ListMonitorsRequest struct {
+// ListRequest holds filters for GET /api/v1/monitor.
+type ListRequest struct {
 	GroupStates   string
 	Name          string
 	Type          string
@@ -111,46 +113,48 @@ type ListMonitorsRequest struct {
 	Limit int
 }
 
-// MonitorsListResult contains monitors returned by the list endpoint.
-type MonitorsListResult struct {
+// ListResult contains monitors returned by the list endpoint.
+type ListResult struct {
 	Monitors []Monitor `json:"monitors"`
 }
 
-// MonitorsClient exposes operations for Datadog monitors.
-type MonitorsClient interface {
-	Create(ctx context.Context, req CreateMonitorRequest) (Monitor, error)
-	List(ctx context.Context, req ListMonitorsRequest) (MonitorsListResult, error)
+// Client accesses the Datadog Monitors API using a shared transport.
+type Client struct {
+	client *datadog.Client
 }
 
-type monitorsClient struct {
-	client *Client
+// NewClient constructs a monitors client using the provided transport.
+func NewClient(transport *datadog.Client) *Client {
+	return &Client{client: transport}
 }
 
-func (c *monitorsClient) Create(ctx context.Context, req CreateMonitorRequest) (Monitor, error) {
+// Create creates a monitor without automatically replaying the request.
+func (c *Client) Create(ctx context.Context, req CreateRequest) (Monitor, error) {
 	body, err := monitorCreateBody(req)
 	if err != nil {
 		return Monitor{}, err
 	}
 
 	var resp Monitor
-	if err := c.client.doJSON(ctx, http.MethodPost, monitorsEndpoint, body, &resp, noRetries); err != nil {
+	if err := c.client.DoJSON(ctx, http.MethodPost, monitorsEndpoint, body, &resp, datadog.NoRetries); err != nil {
 		return Monitor{}, err
 	}
 	return resp, nil
 }
 
-func (c *monitorsClient) List(ctx context.Context, req ListMonitorsRequest) (MonitorsListResult, error) {
+// List retrieves monitors matching the filters and applies the local limit.
+func (c *Client) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	if req.Limit < 0 {
-		return MonitorsListResult{}, fmt.Errorf("limit must be >= 0")
+		return ListResult{}, fmt.Errorf("limit must be >= 0")
 	}
 	if req.Page != nil && *req.Page < 0 {
-		return MonitorsListResult{}, fmt.Errorf("page must be >= 0")
+		return ListResult{}, fmt.Errorf("page must be >= 0")
 	}
 	if req.PageSize < 0 {
-		return MonitorsListResult{}, fmt.Errorf("page_size must be >= 0")
+		return ListResult{}, fmt.Errorf("page_size must be >= 0")
 	}
 	if req.IDOffset != nil && *req.IDOffset < 0 {
-		return MonitorsListResult{}, fmt.Errorf("id_offset must be >= 0")
+		return ListResult{}, fmt.Errorf("id_offset must be >= 0")
 	}
 
 	query := url.Values{}
@@ -180,8 +184,8 @@ func (c *monitorsClient) List(ctx context.Context, req ListMonitorsRequest) (Mon
 	}
 
 	var monitors []Monitor
-	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, monitorsEndpoint, query, nil, &monitors, retryTransient); err != nil {
-		return MonitorsListResult{}, err
+	if err := c.client.DoJSONWithQuery(ctx, http.MethodGet, monitorsEndpoint, query, nil, &monitors, datadog.RetryTransient); err != nil {
+		return ListResult{}, err
 	}
 
 	monitors = filterMonitorsByType(monitors, req.Type)
@@ -190,7 +194,7 @@ func (c *monitorsClient) List(ctx context.Context, req ListMonitorsRequest) (Mon
 		monitors = monitors[:req.Limit]
 	}
 
-	return MonitorsListResult{Monitors: monitors}, nil
+	return ListResult{Monitors: monitors}, nil
 }
 
 func filterMonitorsByType(monitors []Monitor, typeFilter string) []Monitor {
@@ -220,7 +224,7 @@ func parseMonitorTypeFilter(typeFilter string) map[string]struct{} {
 	return out
 }
 
-func monitorCreateBody(req CreateMonitorRequest) (map[string]any, error) {
+func monitorCreateBody(req CreateRequest) (map[string]any, error) {
 	if req.Body != nil {
 		body := copyStringAnyMap(req.Body)
 		if err := validateMonitorCreateBody(body); err != nil {

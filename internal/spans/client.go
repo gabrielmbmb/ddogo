@@ -1,4 +1,4 @@
-package datadog
+package spans
 
 import (
 	"context"
@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 )
 
 const (
@@ -13,8 +16,8 @@ const (
 	maxSpansPageSize    = 1000
 )
 
-// SearchSpansRequest holds the parameters for a Datadog spans search.
-type SearchSpansRequest struct {
+// SearchRequest holds the parameters for a Datadog spans search.
+type SearchRequest struct {
 	Query string
 	From  string
 	To    string
@@ -22,17 +25,10 @@ type SearchSpansRequest struct {
 	Sort  string
 }
 
-// APIWarning represents a non-fatal warning returned by the Datadog API.
-type APIWarning struct {
-	Code   string `json:"code,omitempty"`
-	Title  string `json:"title,omitempty"`
-	Detail string `json:"detail,omitempty"`
-}
-
-// SpanEntry is a single span record returned by the Datadog Spans Search API.
+// Entry is a single span record returned by the Datadog Spans Search API.
 //
 // The field set is intentionally normalized for stable CLI JSON output.
-type SpanEntry struct {
+type Entry struct {
 	ID              string         `json:"id,omitempty"`
 	StartTimestamp  string         `json:"start_timestamp,omitempty"`
 	EndTimestamp    string         `json:"end_timestamp,omitempty"`
@@ -54,37 +50,39 @@ type SpanEntry struct {
 	SingleSpan      *bool          `json:"single_span,omitempty"`
 
 	// Optional enrichment fields.
-	Logs      []LogEntry `json:"logs,omitempty"`
-	LogsError string     `json:"logs_error,omitempty"`
+	Logs      []logs.Entry `json:"logs,omitempty"`
+	LogsError string       `json:"logs_error,omitempty"`
 }
 
-// SpansSearchResult contains spans and response metadata from a search request.
-type SpansSearchResult struct {
-	Spans     []SpanEntry  `json:"spans"`
-	Status    string       `json:"status,omitempty"`
-	RequestID string       `json:"request_id,omitempty"`
-	Warnings  []APIWarning `json:"warnings,omitempty"`
+// SearchResult contains spans and response metadata from a search request.
+type SearchResult struct {
+	Spans     []Entry              `json:"spans"`
+	Status    string               `json:"status,omitempty"`
+	RequestID string               `json:"request_id,omitempty"`
+	Warnings  []datadog.APIWarning `json:"warnings,omitempty"`
 }
 
-// SpansClient exposes span-search operations against the Datadog Spans API.
-type SpansClient interface {
-	Search(ctx context.Context, req SearchSpansRequest) (SpansSearchResult, error)
+// Client searches the Datadog Spans API using a shared transport.
+type Client struct {
+	client *datadog.Client
 }
 
-type spansClient struct {
-	client *Client
+// NewClient constructs a spans client using the provided transport.
+func NewClient(transport *datadog.Client) *Client {
+	return &Client{client: transport}
 }
 
-func (c *spansClient) Search(ctx context.Context, req SearchSpansRequest) (SpansSearchResult, error) {
+// Search retrieves spans up to the requested limit, following cursor pagination.
+func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if req.Limit <= 0 {
-		return SpansSearchResult{}, fmt.Errorf("limit must be > 0")
+		return SearchResult{}, fmt.Errorf("limit must be > 0")
 	}
 	if strings.TrimSpace(req.From) == "" || strings.TrimSpace(req.To) == "" {
-		return SpansSearchResult{}, fmt.Errorf("from and to are required")
+		return SearchResult{}, fmt.Errorf("from and to are required")
 	}
 
 	cursor := ""
-	result := SpansSearchResult{Spans: make([]SpanEntry, 0, req.Limit)}
+	result := SearchResult{Spans: make([]Entry, 0, req.Limit)}
 
 	for len(result.Spans) < req.Limit {
 		remaining := req.Limit - len(result.Spans)
@@ -117,8 +115,8 @@ func (c *spansClient) Search(ctx context.Context, req SearchSpansRequest) (Spans
 		}
 
 		var resp spansListResponse
-		if err := c.client.doJSON(ctx, http.MethodPost, spansSearchEndpoint, body, &resp, retryTransient); err != nil {
-			return SpansSearchResult{}, err
+		if err := c.client.DoJSON(ctx, http.MethodPost, spansSearchEndpoint, body, &resp, datadog.RetryTransient); err != nil {
+			return SearchResult{}, err
 		}
 
 		if resp.Meta.Status != "" {
@@ -132,7 +130,7 @@ func (c *spansClient) Search(ctx context.Context, req SearchSpansRequest) (Spans
 		}
 
 		for _, item := range resp.Data {
-			entry := SpanEntry{
+			entry := Entry{
 				ID:              item.ID,
 				StartTimestamp:  item.Attributes.StartTimestamp,
 				EndTimestamp:    item.Attributes.EndTimestamp,
@@ -222,9 +220,9 @@ type spansListResponse struct {
 		Page    struct {
 			After string `json:"after"`
 		} `json:"page"`
-		RequestID string       `json:"request_id"`
-		Status    string       `json:"status"`
-		Warnings  []APIWarning `json:"warnings"`
+		RequestID string               `json:"request_id"`
+		Status    string               `json:"status"`
+		Warnings  []datadog.APIWarning `json:"warnings"`
 	} `json:"meta"`
 }
 

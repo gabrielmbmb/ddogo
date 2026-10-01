@@ -44,7 +44,9 @@ Probable future scope:
   services, speculative abstractions, and code added solely to match a diagram.
 - Use explicit dependencies and configured CLI streams rather than global clients
   or process-global I/O in command handlers. See `docs/architecture.md` for the
-  current package boundaries.
+  current package boundaries. Keep endpoint clients, models, and pagination in
+  their owning domain packages; `internal/datadog` owns shared transport and retry
+  infrastructure, not domain factories or forwarding services.
 - Use explicit types and schemas for API request/response boundaries.
 - Keep command handlers thin; move business logic to reusable services.
 - Add tests for parsing, filtering, pagination, and error handling paths.

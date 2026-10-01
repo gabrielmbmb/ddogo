@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
@@ -71,7 +72,7 @@ func (d Dependencies) logsSearch() *cli.Command {
 			if err != nil {
 				return err
 			}
-			result, err := ddClient.Logs().Search(c.Context, datadog.SearchLogsRequest{
+			result, err := logs.NewClient(ddClient).Search(c.Context, logs.SearchRequest{
 				Query: c.String("query"),
 				From:  from.Format(time.RFC3339),
 				To:    to.Format(time.RFC3339),

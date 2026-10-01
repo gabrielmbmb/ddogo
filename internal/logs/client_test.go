@@ -1,4 +1,4 @@
-package datadog
+package logs
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestLogsClientSearchSinglePage(t *testing.T) {
@@ -71,7 +73,7 @@ func TestLogsClientSearchSinglePage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -83,7 +85,7 @@ func TestLogsClientSearchSinglePage(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Logs().Search(context.Background(), SearchLogsRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "service:api",
 		From:  "2026-02-25T07:55:00Z",
 		To:    "2026-02-25T08:00:00Z",
@@ -156,7 +158,7 @@ func TestLogsClientSearchPaginates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -168,7 +170,7 @@ func TestLogsClientSearchPaginates(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Logs().Search(context.Background(), SearchLogsRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -207,7 +209,7 @@ func TestLogsClientSearchRetriesOn429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -219,7 +221,7 @@ func TestLogsClientSearchRetriesOn429(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Logs().Search(context.Background(), SearchLogsRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -239,12 +241,12 @@ func TestLogsClientSearchRetriesOn429(t *testing.T) {
 func TestLogsClientSearchRejectsBlankFromTo(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Logs().Search(context.Background(), SearchLogsRequest{Query: "*", From: "   ", To: "\t", Limit: 1})
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{Query: "*", From: "   ", To: "\t", Limit: 1})
 	if err == nil {
 		t.Fatal("expected error for blank from/to")
 	}
@@ -269,7 +271,7 @@ func TestLogsClientSearchUsesProvidedSort(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -281,7 +283,7 @@ func TestLogsClientSearchUsesProvidedSort(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Logs().Search(context.Background(), SearchLogsRequest{
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",

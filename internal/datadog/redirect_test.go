@@ -1,4 +1,4 @@
-package datadog
+package datadog_test
 
 import (
 	"context"
@@ -9,6 +9,10 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
+	"github.com/gabrielmbmb/ddogo/internal/monitors"
 )
 
 func TestAuthenticatedRequestsDoNotFollowRedirects(t *testing.T) {
@@ -30,16 +34,16 @@ func TestAuthenticatedRequestsDoNotFollowRedirects(t *testing.T) {
 					http.Redirect(w, r, target.URL, status)
 				}))
 				defer origin.Close()
-				client, err := NewClient(ClientConfig{APIKey: "test-api", AppKey: "test-app", APIBaseURL: origin.URL, HTTPClient: origin.Client()})
+				client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "test-api", AppKey: "test-app", APIBaseURL: origin.URL, HTTPClient: origin.Client()})
 				if err != nil {
 					t.Fatal(err)
 				}
 				if create {
-					_, err = client.Monitors().Create(context.Background(), CreateMonitorRequest{Name: "Test", Type: "log alert", Query: "logs(*) > 0"})
+					_, err = monitors.NewClient(client).Create(context.Background(), monitors.CreateRequest{Name: "Test", Type: "log alert", Query: "logs(*) > 0"})
 				} else {
-					_, err = client.Logs().Search(context.Background(), SearchLogsRequest{From: "start", To: "end", Limit: 1})
+					_, err = logs.NewClient(client).Search(context.Background(), logs.SearchRequest{From: "start", To: "end", Limit: 1})
 				}
-				var apiErr *APIError
+				var apiErr *datadog.APIError
 				if !errors.As(err, &apiErr) || apiErr.StatusCode != status || calls.Load() != 1 || forwarded.Load() != 0 {
 					t.Fatalf("authenticated request was redirected: %v (origin=%d, target=%d)", err, calls.Load(), forwarded.Load())
 				}
@@ -69,11 +73,11 @@ func TestClientDoesNotMutateInjectedHTTPClient(t *testing.T) {
 		callbacks.Add(1)
 		return nil
 	}
-	client, err := NewClient(ClientConfig{APIKey: "test-api", AppKey: "test-app", APIBaseURL: origin.URL, HTTPClient: shared})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "test-api", AppKey: "test-app", APIBaseURL: origin.URL, HTTPClient: shared})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := client.doJSON(context.Background(), http.MethodGet, "/test", nil, nil, retryTransient); err == nil {
+	if err := client.DoJSON(context.Background(), http.MethodGet, "/test", nil, nil, datadog.RetryTransient); err == nil {
 		t.Fatal("expected API redirect to fail")
 	}
 	if callbacks.Load() != 0 || forwarded.Load() != 0 {

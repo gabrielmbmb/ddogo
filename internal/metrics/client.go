@@ -1,4 +1,5 @@
-package datadog
+// Package metrics provides the Datadog Metrics API client and metric models.
+package metrics
 
 import (
 	"context"
@@ -7,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 const (
@@ -15,8 +18,8 @@ const (
 	metricsV1Endpoint     = "/api/v1/metrics"
 )
 
-// QueryMetricsRequest holds the parameters for a Datadog timeseries query.
-type QueryMetricsRequest struct {
+// QueryRequest holds the parameters for a Datadog timeseries query.
+type QueryRequest struct {
 	// From is the start of the queried time period, seconds since the Unix epoch.
 	From int64
 	// To is the end of the queried time period, seconds since the Unix epoch.
@@ -25,38 +28,38 @@ type QueryMetricsRequest struct {
 	Query string
 }
 
-// MetricsQueryResult holds the response from a timeseries query.
-type MetricsQueryResult struct {
-	Status   string             `json:"status,omitempty"`
-	ResType  string             `json:"res_type,omitempty"`
-	FromDate int64              `json:"from_date,omitempty"`
-	ToDate   int64              `json:"to_date,omitempty"`
-	Query    string             `json:"query,omitempty"`
-	Message  string             `json:"message,omitempty"`
-	Error    string             `json:"error,omitempty"`
-	GroupBy  []string           `json:"group_by,omitempty"`
-	Series   []MetricsSeriesRow `json:"series,omitempty"`
+// QueryResult holds the response from a timeseries query.
+type QueryResult struct {
+	Status   string      `json:"status,omitempty"`
+	ResType  string      `json:"res_type,omitempty"`
+	FromDate int64       `json:"from_date,omitempty"`
+	ToDate   int64       `json:"to_date,omitempty"`
+	Query    string      `json:"query,omitempty"`
+	Message  string      `json:"message,omitempty"`
+	Error    string      `json:"error,omitempty"`
+	GroupBy  []string    `json:"group_by,omitempty"`
+	Series   []SeriesRow `json:"series,omitempty"`
 }
 
-// MetricsSeriesRow represents a single timeseries returned by query.
-type MetricsSeriesRow struct {
-	Metric      string       `json:"metric,omitempty"`
-	DisplayName string       `json:"display_name,omitempty"`
-	Aggr        string       `json:"aggr,omitempty"`
-	Scope       string       `json:"scope,omitempty"`
-	Expression  string       `json:"expression,omitempty"`
-	TagSet      []string     `json:"tag_set,omitempty"`
-	Unit        []MetricUnit `json:"unit,omitempty"`
-	QueryIndex  int64        `json:"query_index,omitempty"`
-	Start       int64        `json:"start,omitempty"`
-	End         int64        `json:"end,omitempty"`
-	Interval    int64        `json:"interval,omitempty"`
-	Length      int64        `json:"length,omitempty"`
-	Pointlist   [][]float64  `json:"pointlist,omitempty"`
+// SeriesRow represents a single timeseries returned by query.
+type SeriesRow struct {
+	Metric      string      `json:"metric,omitempty"`
+	DisplayName string      `json:"display_name,omitempty"`
+	Aggr        string      `json:"aggr,omitempty"`
+	Scope       string      `json:"scope,omitempty"`
+	Expression  string      `json:"expression,omitempty"`
+	TagSet      []string    `json:"tag_set,omitempty"`
+	Unit        []Unit      `json:"unit,omitempty"`
+	QueryIndex  int64       `json:"query_index,omitempty"`
+	Start       int64       `json:"start,omitempty"`
+	End         int64       `json:"end,omitempty"`
+	Interval    int64       `json:"interval,omitempty"`
+	Length      int64       `json:"length,omitempty"`
+	Pointlist   [][]float64 `json:"pointlist,omitempty"`
 }
 
-// MetricUnit describes a metric unit (e.g. bytes, seconds).
-type MetricUnit struct {
+// Unit describes a metric unit (e.g. bytes, seconds).
+type Unit struct {
 	Family      string  `json:"family,omitempty"`
 	Name        string  `json:"name,omitempty"`
 	Plural      string  `json:"plural,omitempty"`
@@ -64,8 +67,8 @@ type MetricUnit struct {
 	ShortName   string  `json:"short_name,omitempty"`
 }
 
-// ListMetricsRequest holds the parameters for listing metrics (v2).
-type ListMetricsRequest struct {
+// ListRequest holds the parameters for listing metrics (v2).
+type ListRequest struct {
 	// FilterConfigured returns only custom metrics configured with Metrics Without Limits.
 	FilterConfigured *bool
 	// FilterTags filters results by submitted tags (supports AND, OR, IN, wildcards).
@@ -80,20 +83,20 @@ type ListMetricsRequest struct {
 
 const maxMetricsPageSize = 200
 
-// MetricsListResult contains the response from listing metrics.
-type MetricsListResult struct {
-	Metrics []MetricListEntry `json:"metrics"`
+// ListResult contains the response from listing metrics.
+type ListResult struct {
+	Metrics []ListEntry `json:"metrics"`
 }
 
-// MetricListEntry is a single metric from the list endpoint.
-type MetricListEntry struct {
+// ListEntry is a single metric from the list endpoint.
+type ListEntry struct {
 	ID         string `json:"id"`
 	Type       string `json:"type,omitempty"`
 	MetricType string `json:"metric_type,omitempty"`
 }
 
-// MetricMetadata contains metadata about a specific metric.
-type MetricMetadata struct {
+// Metadata contains metadata about a specific metric.
+type Metadata struct {
 	Description    string `json:"description,omitempty"`
 	Integration    string `json:"integration,omitempty"`
 	PerUnit        string `json:"per_unit,omitempty"`
@@ -104,35 +107,30 @@ type MetricMetadata struct {
 	MetricName     string `json:"metric_name,omitempty"`
 }
 
-// MetricAllTagsResult contains the tags for a given metric.
-type MetricAllTagsResult struct {
+// TagsResult contains the tags for a given metric.
+type TagsResult struct {
 	MetricName   string   `json:"metric_name,omitempty"`
 	Tags         []string `json:"tags,omitempty"`
 	IngestedTags []string `json:"ingested_tags,omitempty"`
 }
 
-// MetricsClient exposes metric query/list operations against the Datadog Metrics API.
-type MetricsClient interface {
-	// Query queries timeseries points using GET /api/v1/query.
-	Query(ctx context.Context, req QueryMetricsRequest) (MetricsQueryResult, error)
-	// List lists metrics using GET /api/v2/metrics.
-	List(ctx context.Context, req ListMetricsRequest) (MetricsListResult, error)
-	// GetMetadata returns metadata for a given metric name.
-	GetMetadata(ctx context.Context, metricName string) (MetricMetadata, error)
-	// ListTags returns indexed and ingested tags for a given metric name.
-	ListTags(ctx context.Context, metricName string) (MetricAllTagsResult, error)
+// Client accesses the Datadog Metrics API using a shared transport.
+type Client struct {
+	client *datadog.Client
 }
 
-type metricsClient struct {
-	client *Client
+// NewClient constructs a metrics client using the provided transport.
+func NewClient(transport *datadog.Client) *Client {
+	return &Client{client: transport}
 }
 
-func (c *metricsClient) Query(ctx context.Context, req QueryMetricsRequest) (MetricsQueryResult, error) {
+// Query retrieves timeseries points using GET /api/v1/query.
+func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResult, error) {
 	if strings.TrimSpace(req.Query) == "" {
-		return MetricsQueryResult{}, fmt.Errorf("query is required")
+		return QueryResult{}, fmt.Errorf("query is required")
 	}
 	if req.From == 0 || req.To == 0 {
-		return MetricsQueryResult{}, fmt.Errorf("from and to are required")
+		return QueryResult{}, fmt.Errorf("from and to are required")
 	}
 
 	query := url.Values{}
@@ -140,21 +138,22 @@ func (c *metricsClient) Query(ctx context.Context, req QueryMetricsRequest) (Met
 	query.Set("to", strconv.FormatInt(req.To, 10))
 	query.Set("query", req.Query)
 
-	var resp MetricsQueryResult
-	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, metricsQueryEndpoint, query, nil, &resp, retryTransient); err != nil {
-		return MetricsQueryResult{}, err
+	var resp QueryResult
+	if err := c.client.DoJSONWithQuery(ctx, http.MethodGet, metricsQueryEndpoint, query, nil, &resp, datadog.RetryTransient); err != nil {
+		return QueryResult{}, err
 	}
 
 	return resp, nil
 }
 
-func (c *metricsClient) List(ctx context.Context, req ListMetricsRequest) (MetricsListResult, error) {
+// List retrieves metrics up to the requested limit, following cursor pagination.
+func (c *Client) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	if req.Limit <= 0 {
-		return MetricsListResult{}, fmt.Errorf("limit must be > 0")
+		return ListResult{}, fmt.Errorf("limit must be > 0")
 	}
 
 	cursor := ""
-	result := MetricsListResult{Metrics: make([]MetricListEntry, 0, req.Limit)}
+	result := ListResult{Metrics: make([]ListEntry, 0, req.Limit)}
 
 	for len(result.Metrics) < req.Limit {
 		remaining := req.Limit - len(result.Metrics)
@@ -182,12 +181,12 @@ func (c *metricsClient) List(ctx context.Context, req ListMetricsRequest) (Metri
 		}
 
 		var resp metricsListV2Response
-		if err := c.client.doJSONWithQuery(ctx, http.MethodGet, metricsListV2Endpoint, query, nil, &resp, retryTransient); err != nil {
-			return MetricsListResult{}, err
+		if err := c.client.DoJSONWithQuery(ctx, http.MethodGet, metricsListV2Endpoint, query, nil, &resp, datadog.RetryTransient); err != nil {
+			return ListResult{}, err
 		}
 
 		for _, item := range resp.Data {
-			entry := MetricListEntry{
+			entry := ListEntry{
 				ID:   item.ID,
 				Type: item.Type,
 			}
@@ -210,35 +209,37 @@ func (c *metricsClient) List(ctx context.Context, req ListMetricsRequest) (Metri
 	return result, nil
 }
 
-func (c *metricsClient) GetMetadata(ctx context.Context, metricName string) (MetricMetadata, error) {
+// GetMetadata returns metadata for the named metric.
+func (c *Client) GetMetadata(ctx context.Context, metricName string) (Metadata, error) {
 	if strings.TrimSpace(metricName) == "" {
-		return MetricMetadata{}, fmt.Errorf("metric_name is required")
+		return Metadata{}, fmt.Errorf("metric_name is required")
 	}
 
 	path := metricsV1Endpoint + "/" + url.PathEscape(metricName)
 
-	var resp MetricMetadata
-	if err := c.client.doJSON(ctx, http.MethodGet, path, nil, &resp, retryTransient); err != nil {
-		return MetricMetadata{}, err
+	var resp Metadata
+	if err := c.client.DoJSON(ctx, http.MethodGet, path, nil, &resp, datadog.RetryTransient); err != nil {
+		return Metadata{}, err
 	}
 	resp.MetricName = metricName
 
 	return resp, nil
 }
 
-func (c *metricsClient) ListTags(ctx context.Context, metricName string) (MetricAllTagsResult, error) {
+// ListTags returns indexed and ingested tags for the named metric.
+func (c *Client) ListTags(ctx context.Context, metricName string) (TagsResult, error) {
 	if strings.TrimSpace(metricName) == "" {
-		return MetricAllTagsResult{}, fmt.Errorf("metric_name is required")
+		return TagsResult{}, fmt.Errorf("metric_name is required")
 	}
 
 	path := metricsListV2Endpoint + "/" + url.PathEscape(metricName) + "/all-tags"
 
 	var resp metricAllTagsV2Response
-	if err := c.client.doJSON(ctx, http.MethodGet, path, nil, &resp, retryTransient); err != nil {
-		return MetricAllTagsResult{}, err
+	if err := c.client.DoJSON(ctx, http.MethodGet, path, nil, &resp, datadog.RetryTransient); err != nil {
+		return TagsResult{}, err
 	}
 
-	result := MetricAllTagsResult{
+	result := TagsResult{
 		MetricName: resp.Data.ID,
 	}
 	if resp.Data.Attributes != nil {

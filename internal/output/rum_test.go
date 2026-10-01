@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/rum"
 )
 
 func TestRenderRUMEventsPretty(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderRUMEvents(&b, "pretty", []datadog.RUMEvent{{
+	err := RenderRUMEvents(&b, "pretty", []rum.Event{{
 		ID:        "evt-1",
 		Type:      "rum",
 		Timestamp: "2026-03-06T10:38:39.210Z",
@@ -36,7 +36,7 @@ func TestRenderRUMEventsJSON(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderRUMEvents(&b, "json", []datadog.RUMEvent{{ID: "evt-1", Type: "rum"}})
+	err := RenderRUMEvents(&b, "json", []rum.Event{{ID: "evt-1", Type: "rum"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

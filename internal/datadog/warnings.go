@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+// APIWarning represents a non-fatal warning returned by Datadog search APIs.
+type APIWarning struct {
+	Code   string `json:"code,omitempty"`
+	Title  string `json:"title,omitempty"`
+	Detail string `json:"detail,omitempty"`
+}
+
 // FormatSearchWarnings converts Datadog search metadata warnings into user-facing
 // warning messages suitable for stderr output.
 func FormatSearchWarnings(domain, status string, warnings []APIWarning) []string {

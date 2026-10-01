@@ -1,4 +1,4 @@
-package datadog
+package spans
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestSpansClientSearchSinglePage(t *testing.T) {
@@ -85,7 +87,7 @@ func TestSpansClientSearchSinglePage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -97,7 +99,7 @@ func TestSpansClientSearchSinglePage(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	resp, err := client.Spans().Search(context.Background(), SearchSpansRequest{
+	resp, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "service:api",
 		From:  "2026-02-25T07:55:00Z",
 		To:    "2026-02-25T08:00:00Z",
@@ -167,7 +169,7 @@ func TestSpansClientSearchPaginates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -179,7 +181,7 @@ func TestSpansClientSearchPaginates(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	resp, err := client.Spans().Search(context.Background(), SearchSpansRequest{
+	resp, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -218,7 +220,7 @@ func TestSpansClientSearchRetriesOn429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -230,7 +232,7 @@ func TestSpansClientSearchRetriesOn429(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	resp, err := client.Spans().Search(context.Background(), SearchSpansRequest{
+	resp, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -266,7 +268,7 @@ func TestSpansClientSearchUsesProvidedSort(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -278,7 +280,7 @@ func TestSpansClientSearchUsesProvidedSort(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Spans().Search(context.Background(), SearchSpansRequest{
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "*",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",

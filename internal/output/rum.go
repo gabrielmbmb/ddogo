@@ -6,11 +6,11 @@ import (
 	"io"
 	"text/tabwriter"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/rum"
 )
 
 // RenderRUMEvents writes RUM events to w in the requested format ("pretty" or "json").
-func RenderRUMEvents(w io.Writer, format string, events []datadog.RUMEvent) error {
+func RenderRUMEvents(w io.Writer, format string, events []rum.Event) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -23,7 +23,7 @@ func RenderRUMEvents(w io.Writer, format string, events []datadog.RUMEvent) erro
 	}
 }
 
-func renderPrettyRUMEvents(w io.Writer, events []datadog.RUMEvent) error {
+func renderPrettyRUMEvents(w io.Writer, events []rum.Event) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "TIMESTAMP\tSERVICE\tTYPE\tEVENT_ID"); err != nil {
 		return err

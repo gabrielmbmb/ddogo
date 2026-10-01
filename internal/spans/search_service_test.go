@@ -9,24 +9,25 @@ import (
 	"time"
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 )
 
 type fakeSpansClient struct {
-	searchFn func(context.Context, datadog.SearchSpansRequest) (datadog.SpansSearchResult, error)
+	searchFn func(context.Context, SearchRequest) (SearchResult, error)
 }
 
-func (f fakeSpansClient) Search(ctx context.Context, req datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
+func (f fakeSpansClient) Search(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	return f.searchFn(ctx, req)
 }
 
 type fakeLogsClient struct {
 	mu       sync.Mutex
 	calls    int
-	requests []datadog.SearchLogsRequest
-	searchFn func(context.Context, datadog.SearchLogsRequest) (datadog.LogsSearchResult, error)
+	requests []logs.SearchRequest
+	searchFn func(context.Context, logs.SearchRequest) (logs.SearchResult, error)
 }
 
-func (f *fakeLogsClient) Search(ctx context.Context, req datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
+func (f *fakeLogsClient) Search(ctx context.Context, req logs.SearchRequest) (logs.SearchResult, error) {
 	f.mu.Lock()
 	f.calls++
 	f.requests = append(f.requests, req)
@@ -36,7 +37,7 @@ func (f *fakeLogsClient) Search(ctx context.Context, req datadog.SearchLogsReque
 	if searchFn != nil {
 		return searchFn(ctx, req)
 	}
-	return datadog.LogsSearchResult{}, nil
+	return logs.SearchResult{}, nil
 }
 
 func (f *fakeLogsClient) Calls() int {
@@ -45,26 +46,26 @@ func (f *fakeLogsClient) Calls() int {
 	return f.calls
 }
 
-func (f *fakeLogsClient) Requests() []datadog.SearchLogsRequest {
+func (f *fakeLogsClient) Requests() []logs.SearchRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	copied := make([]datadog.SearchLogsRequest, len(f.requests))
+	copied := make([]logs.SearchRequest, len(f.requests))
 	copy(copied, f.requests)
 	return copied
 }
 
 func TestSearchWithoutLogsDoesNotCallLogsClient(t *testing.T) {
 	logsClient := &fakeLogsClient{}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, req datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, req SearchRequest) (SearchResult, error) {
 		if req.Query != "service:api" {
 			t.Fatalf("expected spans query service:api, got %q", req.Query)
 		}
-		return datadog.SpansSearchResult{
-			Spans: []datadog.SpanEntry{{SpanID: "span-1", TraceID: "trace-1"}},
+		return SearchResult{
+			Spans: []Entry{{SpanID: "span-1", TraceID: "trace-1"}},
 		}, nil
 	}}, logsClient)
 
-	resp, err := svc.Search(context.Background(), SearchRequest{
+	resp, err := svc.Search(context.Background(), SearchOptions{
 		Query: "service:api",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T08:10:00Z",
@@ -82,16 +83,16 @@ func TestSearchWithoutLogsDoesNotCallLogsClient(t *testing.T) {
 }
 
 func TestSearchWithLogsUsesCorrelatedQueryAndExtraFilter(t *testing.T) {
-	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, _ datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
-		return datadog.LogsSearchResult{Logs: []datadog.LogEntry{{Timestamp: "2026-02-25T08:00:00Z", Message: "hello"}}}, nil
+	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, _ logs.SearchRequest) (logs.SearchResult, error) {
+		return logs.SearchResult{Logs: []logs.Entry{{Timestamp: "2026-02-25T08:00:00Z", Message: "hello"}}}, nil
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{
-			Spans: []datadog.SpanEntry{{SpanID: "span-1", TraceID: "trace-1"}},
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ SearchRequest) (SearchResult, error) {
+		return SearchResult{
+			Spans: []Entry{{SpanID: "span-1", TraceID: "trace-1"}},
 		}, nil
 	}}, logsClient)
 
-	resp, err := svc.Search(context.Background(), SearchRequest{
+	resp, err := svc.Search(context.Background(), SearchOptions{
 		Query:     "service:api",
 		From:      "2026-02-25T08:00:00Z",
 		To:        "2026-02-25T08:10:00Z",
@@ -122,24 +123,24 @@ func TestSearchWithLogsUsesCorrelatedQueryAndExtraFilter(t *testing.T) {
 }
 
 func TestSearchWithLogsStoresPerSpanError(t *testing.T) {
-	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, req datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
+	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, req logs.SearchRequest) (logs.SearchResult, error) {
 		if strings.Contains(req.Query, "span-2") {
-			return datadog.LogsSearchResult{}, errors.New("boom")
+			return logs.SearchResult{}, errors.New("boom")
 		}
-		return datadog.LogsSearchResult{Logs: []datadog.LogEntry{{Timestamp: "2026-02-25T08:00:00Z", Message: "ok"}}}, nil
+		return logs.SearchResult{Logs: []logs.Entry{{Timestamp: "2026-02-25T08:00:00Z", Message: "ok"}}}, nil
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ SearchRequest) (SearchResult, error) {
+		return SearchResult{
 			Status:   "timeout",
 			Warnings: []datadog.APIWarning{{Title: "Unknown index", Detail: "indexes: foo", Code: "unknown_index"}},
-			Spans: []datadog.SpanEntry{
+			Spans: []Entry{
 				{SpanID: "span-1", TraceID: "trace-1"},
 				{SpanID: "span-2", TraceID: "trace-2"},
 			},
 		}, nil
 	}}, logsClient)
 
-	resp, err := svc.Search(context.Background(), SearchRequest{
+	resp, err := svc.Search(context.Background(), SearchOptions{
 		Query:     "*",
 		From:      "2026-02-25T08:00:00Z",
 		To:        "2026-02-25T08:10:00Z",
@@ -168,11 +169,11 @@ func TestSearchWithLogsStoresPerSpanError(t *testing.T) {
 
 func TestSearchWithLogsMissingCorrelationIDs(t *testing.T) {
 	logsClient := &fakeLogsClient{}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{{ID: "span-1"}}}, nil
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ SearchRequest) (SearchResult, error) {
+		return SearchResult{Spans: []Entry{{ID: "span-1"}}}, nil
 	}}, logsClient)
 
-	resp, err := svc.Search(context.Background(), SearchRequest{
+	resp, err := svc.Search(context.Background(), SearchOptions{
 		Query:     "*",
 		From:      "2026-02-25T08:00:00Z",
 		To:        "2026-02-25T08:10:00Z",
@@ -194,21 +195,21 @@ func TestSearchWithLogsMissingCorrelationIDs(t *testing.T) {
 }
 
 func TestSearchWithLogsRateLimitSkipsRemainingSpans(t *testing.T) {
-	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, req datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
+	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, req logs.SearchRequest) (logs.SearchResult, error) {
 		if strings.Contains(req.Query, "span-1") {
-			return datadog.LogsSearchResult{}, &datadog.APIError{StatusCode: 429, Message: "Too many requests"}
+			return logs.SearchResult{}, &datadog.APIError{StatusCode: 429, Message: "Too many requests"}
 		}
-		return datadog.LogsSearchResult{Logs: []datadog.LogEntry{{Timestamp: "2026-02-25T08:00:00Z", Message: "ok"}}}, nil
+		return logs.SearchResult{Logs: []logs.Entry{{Timestamp: "2026-02-25T08:00:00Z", Message: "ok"}}}, nil
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ SearchRequest) (SearchResult, error) {
+		return SearchResult{Spans: []Entry{
 			{SpanID: "span-1", TraceID: "trace-1"},
 			{SpanID: "span-2", TraceID: "trace-2"},
 			{SpanID: "span-3", TraceID: "trace-3"},
 		}}, nil
 	}}, logsClient)
 
-	resp, err := svc.Search(context.Background(), SearchRequest{
+	resp, err := svc.Search(context.Background(), SearchOptions{
 		Query:             "*",
 		From:              "2026-02-25T08:00:00Z",
 		To:                "2026-02-25T08:10:00Z",
@@ -251,18 +252,18 @@ func TestSearchWithLogsRateLimitSkipsRemainingSpans(t *testing.T) {
 
 func TestSearchWithLogsRateLimitWaitRetriesAndSucceeds(t *testing.T) {
 	var attempts int
-	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, _ datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
+	logsClient := &fakeLogsClient{searchFn: func(_ context.Context, _ logs.SearchRequest) (logs.SearchResult, error) {
 		attempts++
 		if attempts == 1 {
-			return datadog.LogsSearchResult{}, &datadog.APIError{StatusCode: 429, Message: "Too many requests"}
+			return logs.SearchResult{}, &datadog.APIError{StatusCode: 429, Message: "Too many requests"}
 		}
-		return datadog.LogsSearchResult{Logs: []datadog.LogEntry{{Timestamp: "2026-02-25T08:00:00Z", Message: "ok"}}}, nil
+		return logs.SearchResult{Logs: []logs.Entry{{Timestamp: "2026-02-25T08:00:00Z", Message: "ok"}}}, nil
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{{SpanID: "span-1", TraceID: "trace-1"}}}, nil
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ SearchRequest) (SearchResult, error) {
+		return SearchResult{Spans: []Entry{{SpanID: "span-1", TraceID: "trace-1"}}}, nil
 	}}, logsClient)
 
-	resp, err := svc.Search(context.Background(), SearchRequest{
+	resp, err := svc.Search(context.Background(), SearchOptions{
 		Query:                 "*",
 		From:                  "2026-02-25T08:00:00Z",
 		To:                    "2026-02-25T08:10:00Z",
@@ -290,11 +291,11 @@ func TestSearchWithLogsRateLimitWaitRetriesAndSucceeds(t *testing.T) {
 }
 
 func TestSearchWithLogsRejectsInvalidRateLimitMode(t *testing.T) {
-	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{}, nil
+	svc := NewSearchService(fakeSpansClient{searchFn: func(_ context.Context, _ SearchRequest) (SearchResult, error) {
+		return SearchResult{}, nil
 	}}, &fakeLogsClient{})
 
-	_, err := svc.Search(context.Background(), SearchRequest{
+	_, err := svc.Search(context.Background(), SearchOptions{
 		Query:             "*",
 		From:              "2026-02-25T08:00:00Z",
 		To:                "2026-02-25T08:10:00Z",

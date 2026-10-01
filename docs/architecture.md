@@ -18,22 +18,35 @@ speculative abstractions for future Datadog endpoints.
   environment precedence. Auth status uses the same resolution logic.
 - `internal/auth`: credentials and OS keyring persistence. Keep the existing
   Store interface so commands can use an in-memory store in tests.
-- `internal/datadog`: typed API requests/responses, endpoint mapping, pagination,
-  and shared HTTP transport. Keep domain clients in focused files in this package.
-- `internal/spans`: span search and optional log-enrichment orchestration.
-- `internal/monitors`: pure alert-group derivation and best-effort investigation
-  context. These derived models belong here, not in the HTTP client.
+- `internal/datadog`: shared HTTP transport, authentication headers, retry policies,
+  API errors, and common search-warning metadata. It must not import domain packages.
+- `internal/logs`, `internal/rum`, `internal/metrics`, `internal/errortracking`:
+  domain API clients, request/response models, endpoint mapping, normalization, and
+  pagination. Keep this existing logic together; do not add forwarding services.
+- `internal/spans`: the spans API client and models, plus optional correlated-log
+  enrichment. It consumes the logs client through a narrow workflow-owned interface.
+- `internal/monitors`: the monitors API client and models, plus pure alert-group
+  derivation and best-effort investigation context.
 - `internal/output`: human-readable and JSON presentation with stable fields.
 
 The CLI may depend on application operations and API clients. Application
 workflows must not depend on the CLI framework or process-global streams. Do not
 copy every Datadog model into a second representation just to enforce a diagram.
 
+Each domain exposes a concrete `Client`, constructed with
+`domain.NewClient(transport)`. The shared `*datadog.Client` exposes `DoJSON` and
+`DoJSONWithQuery`; domain clients select an explicit `datadog.RetryPolicy` for each
+endpoint. There are no domain factories in the transport package, compatibility
+aliases, or duplicated models. Renderers use models from their owning domain.
+
 ## Dependencies and tests
 
 `cli.New` accepts `commands.Dependencies`: a credential Store, a clock, and a
 client factory. Zero values select production defaults. The factory runs only
 when a command needs the API, so help and auth commands do not require API keys.
+Commands construct lightweight domain clients from that shared transport. Interfaces
+are defined only by consumers that need them, such as the span-enrichment workflow;
+API adapters expose concrete clients rather than producer-owned interfaces.
 Tests supply a fixed clock, an in-memory store, and a client pointing to an
 `httptest.Server`; app streams capture input, results, and diagnostics.
 

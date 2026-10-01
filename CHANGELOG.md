@@ -24,6 +24,11 @@
 
 ### Maintenance
 
+- Moved existing API adapters, models, pagination, and adapter tests into the
+  `logs`, `spans`, `rum`, `metrics`, `monitors`, and `errortracking` domain packages.
+  Datadog transport remains shared; flags, help, JSON output, and retry behavior
+  are unchanged. Domain clients are concrete; span-enrichment interfaces belong
+  to the workflow that consumes them.
 - Extracted monitor alert workflows from CLI wiring without changing JSON fields.
 - Made command streams, clock, credential store, and API client factory injectable.
 - Removed CLI-framework dependencies from configuration resolution and reused

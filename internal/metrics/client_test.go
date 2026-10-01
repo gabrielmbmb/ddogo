@@ -1,4 +1,4 @@
-package datadog
+package metrics //nolint:revive // This domain package intentionally shares its name with runtime/metrics.
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestMetricsClientQueryBasic(t *testing.T) {
@@ -63,7 +65,7 @@ func TestMetricsClientQueryBasic(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -75,7 +77,7 @@ func TestMetricsClientQueryBasic(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Metrics().Query(context.Background(), QueryMetricsRequest{
+	result, err := NewClient(client).Query(context.Background(), QueryRequest{
 		From:  1636542671,
 		To:    1636629071,
 		Query: "avg:system.cpu.idle{*}",
@@ -110,12 +112,12 @@ func TestMetricsClientQueryBasic(t *testing.T) {
 func TestMetricsClientQueryRejectsBlankQuery(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Metrics().Query(context.Background(), QueryMetricsRequest{From: 100, To: 200, Query: "   "})
+	_, err = NewClient(client).Query(context.Background(), QueryRequest{From: 100, To: 200, Query: "   "})
 	if err == nil {
 		t.Fatal("expected error for blank query")
 	}
@@ -156,7 +158,7 @@ func TestMetricsClientListBasic(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -168,7 +170,7 @@ func TestMetricsClientListBasic(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Metrics().List(context.Background(), ListMetricsRequest{
+	result, err := NewClient(client).List(context.Background(), ListRequest{
 		Limit: 10,
 	})
 	if err != nil {
@@ -209,7 +211,7 @@ func TestMetricsClientListWithFilters(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -222,7 +224,7 @@ func TestMetricsClientListWithFilters(t *testing.T) {
 	}
 
 	configured := true
-	_, err = client.Metrics().List(context.Background(), ListMetricsRequest{
+	_, err = NewClient(client).List(context.Background(), ListRequest{
 		FilterConfigured: &configured,
 		FilterTags:       "env:prod",
 		FilterMetricType: "distribution",
@@ -264,7 +266,7 @@ func TestMetricsClientListAutoPaginates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -276,7 +278,7 @@ func TestMetricsClientListAutoPaginates(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Metrics().List(context.Background(), ListMetricsRequest{Limit: 10})
+	result, err := NewClient(client).List(context.Background(), ListRequest{Limit: 10})
 	if err != nil {
 		t.Fatalf("unexpected List error: %v", err)
 	}
@@ -306,7 +308,7 @@ func TestMetricsClientListStopsAtLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -318,7 +320,7 @@ func TestMetricsClientListStopsAtLimit(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Metrics().List(context.Background(), ListMetricsRequest{Limit: 2})
+	result, err := NewClient(client).List(context.Background(), ListRequest{Limit: 2})
 	if err != nil {
 		t.Fatalf("unexpected List error: %v", err)
 	}
@@ -330,12 +332,12 @@ func TestMetricsClientListStopsAtLimit(t *testing.T) {
 func TestMetricsClientListRejectsZeroLimit(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Metrics().List(context.Background(), ListMetricsRequest{Limit: 0})
+	_, err = NewClient(client).List(context.Background(), ListRequest{Limit: 0})
 	if err == nil {
 		t.Fatal("expected error for zero limit")
 	}
@@ -365,7 +367,7 @@ func TestMetricsClientGetMetadata(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -377,7 +379,7 @@ func TestMetricsClientGetMetadata(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	meta, err := client.Metrics().GetMetadata(context.Background(), "system.cpu.idle")
+	meta, err := NewClient(client).GetMetadata(context.Background(), "system.cpu.idle")
 	if err != nil {
 		t.Fatalf("unexpected GetMetadata error: %v", err)
 	}
@@ -404,12 +406,12 @@ func TestMetricsClientGetMetadata(t *testing.T) {
 func TestMetricsClientGetMetadataRejectsBlankName(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Metrics().GetMetadata(context.Background(), "   ")
+	_, err = NewClient(client).GetMetadata(context.Background(), "   ")
 	if err == nil {
 		t.Fatal("expected error for blank metric name")
 	}
@@ -440,7 +442,7 @@ func TestMetricsClientListTags(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -452,7 +454,7 @@ func TestMetricsClientListTags(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Metrics().ListTags(context.Background(), "system.cpu.idle")
+	result, err := NewClient(client).ListTags(context.Background(), "system.cpu.idle")
 	if err != nil {
 		t.Fatalf("unexpected ListTags error: %v", err)
 	}
@@ -473,12 +475,12 @@ func TestMetricsClientListTags(t *testing.T) {
 func TestMetricsClientListTagsRejectsBlankName(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Metrics().ListTags(context.Background(), "")
+	_, err = NewClient(client).ListTags(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error for blank metric name")
 	}
@@ -505,7 +507,7 @@ func TestMetricsClientQueryRetriesOn429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -517,7 +519,7 @@ func TestMetricsClientQueryRetriesOn429(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Metrics().Query(context.Background(), QueryMetricsRequest{
+	result, err := NewClient(client).Query(context.Background(), QueryRequest{
 		From:  1636542671,
 		To:    1636629071,
 		Query: "avg:system.cpu.idle{*}",

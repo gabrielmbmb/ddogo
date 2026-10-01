@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 )
 
 func TestRenderPrettyEscapesMultilineMessages(t *testing.T) {
 	var b bytes.Buffer
-	err := RenderLogs(&b, "pretty", []datadog.LogEntry{
+	err := RenderLogs(&b, "pretty", []logs.Entry{
 		{Timestamp: "2026-02-25T08:00:00Z", Message: "line1\nline2\r\nline3\tend"},
 	})
 	if err != nil {

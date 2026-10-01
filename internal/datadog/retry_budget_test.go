@@ -36,7 +36,7 @@ func TestRetryAfterExceedingBudgetReturnsWithoutRetry(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			start := time.Now()
-			err = client.doJSON(ctx, http.MethodGet, "/test", nil, nil, retryTransient)
+			err = client.DoJSON(ctx, http.MethodGet, "/test", nil, nil, RetryTransient)
 			var apiErr *APIError
 			if !errors.As(err, &apiErr) || apiErr.StatusCode != 429 || apiErr.RetryAfter <= client.maxRetryWait || calls.Load() != 1 {
 				t.Fatalf("did not fail without waiting or retrying: %v (calls=%d)", err, calls.Load())
@@ -68,7 +68,7 @@ func TestRetryWaitBudgetIsCumulative(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 	start := time.Now()
-	err = client.doJSON(ctx, http.MethodGet, "/test", nil, nil, retryTransient)
+	err = client.DoJSON(ctx, http.MethodGet, "/test", nil, nil, RetryTransient)
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != 429 || calls.Load() != 2 {
 		t.Fatalf("cumulative wait budget was ignored: %v (calls=%d)", err, calls.Load())
@@ -92,7 +92,7 @@ func TestTransportErrorsRespectWaitBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = client.doJSON(context.Background(), http.MethodGet, "/test", nil, nil, retryTransient)
+	err = client.DoJSON(context.Background(), http.MethodGet, "/test", nil, nil, RetryTransient)
 	if !errors.Is(err, context.DeadlineExceeded) || calls != 1 {
 		t.Fatalf("transport retried beyond its wait budget: %v (calls=%d)", err, calls)
 	}
@@ -116,7 +116,7 @@ func TestRetryWithinBudgetCanSucceed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Logs().Search(context.Background(), SearchLogsRequest{From: "start", To: "end", Limit: 1})
+	err = client.DoJSON(context.Background(), http.MethodGet, "/test", nil, nil, RetryTransient)
 	if err != nil || calls.Load() != 2 {
 		t.Fatalf("retry within the budget did not succeed: %v (calls=%d)", err, calls.Load())
 	}

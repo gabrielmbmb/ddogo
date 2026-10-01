@@ -1,4 +1,5 @@
-// Package spans contains span-domain orchestration used by CLI commands.
+// Package spans provides the Datadog Spans API client, span models, and
+// correlated-log enrichment.
 package spans
 
 import (
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 )
 
 const (
@@ -27,8 +29,8 @@ const (
 	DefaultLogsRateLimitMaxWaits = 3
 )
 
-// SearchRequest captures all spans search and optional log enrichment parameters.
-type SearchRequest struct {
+// SearchOptions captures span search and optional log enrichment parameters.
+type SearchOptions struct {
 	Query string
 	From  string
 	To    string
@@ -47,23 +49,32 @@ type SearchRequest struct {
 
 // SearchResponse is the service output used by CLI renderers.
 type SearchResponse struct {
-	Spans    []datadog.SpanEntry
+	Spans    []Entry
 	Warnings []string
+}
+
+// These interfaces belong to the workflow that consumes the API clients.
+type spanSearcher interface {
+	Search(context.Context, SearchRequest) (SearchResult, error)
+}
+
+type logSearcher interface {
+	Search(context.Context, logs.SearchRequest) (logs.SearchResult, error)
 }
 
 // SearchService orchestrates span retrieval and optional per-span log enrichment.
 type SearchService struct {
-	spansClient datadog.SpansClient
-	logsClient  datadog.LogsClient
+	spansClient spanSearcher
+	logsClient  logSearcher
 }
 
 // NewSearchService constructs a SearchService.
-func NewSearchService(spansClient datadog.SpansClient, logsClient datadog.LogsClient) *SearchService {
+func NewSearchService(spansClient spanSearcher, logsClient logSearcher) *SearchService {
 	return &SearchService{spansClient: spansClient, logsClient: logsClient}
 }
 
 // Search executes the spans query and optionally enriches each span with correlated logs.
-func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
+func (s *SearchService) Search(ctx context.Context, req SearchOptions) (SearchResponse, error) {
 	if s.spansClient == nil {
 		return SearchResponse{}, fmt.Errorf("spans client is required")
 	}
@@ -102,7 +113,7 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 	if err := ctx.Err(); err != nil {
 		return SearchResponse{}, err
 	}
-	spansResult, err := s.spansClient.Search(ctx, datadog.SearchSpansRequest{
+	spansResult, err := s.spansClient.Search(ctx, SearchRequest{
 		Query: req.Query,
 		From:  req.From,
 		To:    req.To,
@@ -125,14 +136,14 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 
 type spanLogsFetchResult struct {
 	Index              int
-	Logs               []datadog.LogEntry
+	Logs               []logs.Entry
 	LogsErr            string
 	Warning            string
 	RateLimited        bool
 	SkippedByRateLimit bool
 }
 
-func (s *SearchService) enrichSpansWithLogs(ctx context.Context, response *SearchResponse, req SearchRequest) {
+func (s *SearchService) enrichSpansWithLogs(ctx context.Context, response *SearchResponse, req SearchOptions) {
 	if len(response.Spans) == 0 {
 		return
 	}
@@ -263,14 +274,14 @@ func isRateLimitError(err error) bool {
 	return apiErr.StatusCode == 429
 }
 
-func (s *SearchService) searchLogsWithStrategy(ctx context.Context, req SearchRequest, query string) ([]datadog.LogEntry, error) {
+func (s *SearchService) searchLogsWithStrategy(ctx context.Context, req SearchOptions, query string) ([]logs.Entry, error) {
 	mode := req.LogsRateLimitMode
 	waitDuration := req.LogsRateLimitWait
 	maxWaits := req.LogsRateLimitMaxWaits
 
 	attempt := 0
 	for {
-		result, err := s.logsClient.Search(ctx, datadog.SearchLogsRequest{
+		result, err := s.logsClient.Search(ctx, logs.SearchRequest{
 			Query:                query,
 			From:                 req.LogsFrom,
 			To:                   req.LogsTo,
@@ -330,7 +341,7 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 	}
 }
 
-func buildCorrelatedLogsQuery(span datadog.SpanEntry, additionalQuery string) (string, error) {
+func buildCorrelatedLogsQuery(span Entry, additionalQuery string) (string, error) {
 	clauses := make([]string, 0, 3)
 
 	traceID := strings.TrimSpace(span.TraceID)
@@ -351,7 +362,7 @@ func buildCorrelatedLogsQuery(span datadog.SpanEntry, additionalQuery string) (s
 	return strings.Join(clauses, " "), nil
 }
 
-func spanIDForWarnings(span datadog.SpanEntry) string {
+func spanIDForWarnings(span Entry) string {
 	if strings.TrimSpace(span.SpanID) != "" {
 		return span.SpanID
 	}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/metrics"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
@@ -64,7 +64,7 @@ func (d Dependencies) metricsQuery() *cli.Command {
 				return err
 			}
 
-			result, err := ddClient.Metrics().Query(c.Context, datadog.QueryMetricsRequest{
+			result, err := metrics.NewClient(ddClient).Query(c.Context, metrics.QueryRequest{
 				From:  from.Unix(),
 				To:    to.Unix(),
 				Query: c.String("query"),
@@ -128,7 +128,7 @@ func (d Dependencies) metricsList() *cli.Command {
 				return err
 			}
 
-			req := datadog.ListMetricsRequest{
+			req := metrics.ListRequest{
 				FilterTags:       c.String("filter-tags"),
 				FilterMetricType: c.String("filter-metric-type"),
 				WindowSeconds:    c.Int("window-seconds"),
@@ -139,7 +139,7 @@ func (d Dependencies) metricsList() *cli.Command {
 				req.FilterConfigured = &v
 			}
 
-			result, err := ddClient.Metrics().List(c.Context, req)
+			result, err := metrics.NewClient(ddClient).List(c.Context, req)
 			if err != nil {
 				return err
 			}
@@ -171,7 +171,7 @@ func (d Dependencies) metricsMetadata() *cli.Command {
 				return err
 			}
 
-			meta, err := ddClient.Metrics().GetMetadata(c.Context, metricName)
+			meta, err := metrics.NewClient(ddClient).GetMetadata(c.Context, metricName)
 			if err != nil {
 				return err
 			}
@@ -203,7 +203,7 @@ func (d Dependencies) metricsTags() *cli.Command {
 				return err
 			}
 
-			result, err := ddClient.Metrics().ListTags(c.Context, metricName)
+			result, err := metrics.NewClient(ddClient).ListTags(c.Context, metricName)
 			if err != nil {
 				return err
 			}

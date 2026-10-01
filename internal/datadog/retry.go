@@ -10,14 +10,17 @@ import (
 	"time"
 )
 
-// Search POSTs are replayable; monitor creation is not. Enrichment handles 429
-// scheduling itself, while retaining transport retries for other failures.
-type retryPolicy uint8
+// RetryPolicy specifies whether an endpoint's request can be replayed safely.
+type RetryPolicy uint8
 
 const (
-	noRetries retryPolicy = iota
-	retryTransient
-	retryExceptRateLimit
+	// NoRetries sends a request only once, including non-idempotent writes.
+	NoRetries RetryPolicy = iota
+	// RetryTransient retries timeouts, 408, 429, and 5xx responses.
+	RetryTransient
+	// RetryExceptRateLimit leaves 429 scheduling to the caller while retrying
+	// other transient failures.
+	RetryExceptRateLimit
 )
 
 func shouldRetryError(err error) bool {
@@ -31,8 +34,8 @@ func shouldRetryError(err error) bool {
 	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
-func (p retryPolicy) allowsStatus(code int) bool {
-	if p == noRetries || (p == retryExceptRateLimit && code == http.StatusTooManyRequests) {
+func (p RetryPolicy) allowsStatus(code int) bool {
+	if p == NoRetries || (p == RetryExceptRateLimit && code == http.StatusTooManyRequests) {
 		return false
 	}
 	return code == http.StatusRequestTimeout || code == http.StatusTooManyRequests || code >= 500

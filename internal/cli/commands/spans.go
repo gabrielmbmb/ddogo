@@ -7,8 +7,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 	"github.com/gabrielmbmb/ddogo/internal/output"
-	spansvc "github.com/gabrielmbmb/ddogo/internal/spans"
+	"github.com/gabrielmbmb/ddogo/internal/spans"
 )
 
 const defaultLogsLimit = 20
@@ -76,17 +77,17 @@ func (d Dependencies) spansSearch() *cli.Command {
 			&cli.StringFlag{
 				Name:  "logs-rate-limit-mode",
 				Usage: "Behavior when correlated logs hit Datadog 429 rate limits: skip|wait",
-				Value: spansvc.DefaultLogsRateLimitMode,
+				Value: spans.DefaultLogsRateLimitMode,
 			},
 			&cli.DurationFlag{
 				Name:  "logs-rate-limit-wait",
 				Usage: "Wait duration between retries when --logs-rate-limit-mode=wait",
-				Value: spansvc.DefaultLogsRateLimitWait,
+				Value: spans.DefaultLogsRateLimitWait,
 			},
 			&cli.IntFlag{
 				Name:  "logs-rate-limit-max-waits",
 				Usage: "Maximum number of wait+retry cycles on 429 when --logs-rate-limit-mode=wait",
-				Value: spansvc.DefaultLogsRateLimitMaxWaits,
+				Value: spans.DefaultLogsRateLimitMaxWaits,
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -136,7 +137,7 @@ func (d Dependencies) spansSearch() *cli.Command {
 			if withLogs {
 				mode := strings.ToLower(strings.TrimSpace(c.String("logs-rate-limit-mode")))
 				if mode == "" {
-					mode = spansvc.DefaultLogsRateLimitMode
+					mode = spans.DefaultLogsRateLimitMode
 				}
 				_, _ = fmt.Fprintf(c.App.ErrWriter, "info: --with-logs enabled; may perform up to %d additional logs requests (429 mode: %s)\n", c.Int("limit"), mode)
 			}
@@ -146,8 +147,8 @@ func (d Dependencies) spansSearch() *cli.Command {
 				return err
 			}
 
-			service := spansvc.NewSearchService(ddClient.Spans(), ddClient.Logs())
-			result, err := service.Search(c.Context, spansvc.SearchRequest{
+			service := spans.NewSearchService(spans.NewClient(ddClient), logs.NewClient(ddClient))
+			result, err := service.Search(c.Context, spans.SearchOptions{
 				Query:                 c.String("query"),
 				From:                  from.Format(time.RFC3339),
 				To:                    to.Format(time.RFC3339),

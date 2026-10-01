@@ -9,7 +9,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/monitors"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
@@ -95,7 +95,7 @@ func (d Dependencies) monitorsList() *cli.Command {
 				return err
 			}
 
-			result, err := ddClient.Monitors().List(c.Context, req)
+			result, err := monitors.NewClient(ddClient).List(c.Context, req)
 			if err != nil {
 				return err
 			}
@@ -286,7 +286,7 @@ func (d Dependencies) monitorsCreate() *cli.Command {
 				return err
 			}
 
-			monitor, err := ddClient.Monitors().Create(c.Context, datadog.CreateMonitorRequest{Body: body})
+			monitor, err := monitors.NewClient(ddClient).Create(c.Context, monitors.CreateRequest{Body: body})
 			if err != nil {
 				return err
 			}
@@ -296,18 +296,18 @@ func (d Dependencies) monitorsCreate() *cli.Command {
 	}
 }
 
-func listMonitorsRequestFromFlags(c *cli.Context) (datadog.ListMonitorsRequest, error) {
+func listMonitorsRequestFromFlags(c *cli.Context) (monitors.ListRequest, error) {
 	all := c.Bool("all")
 	limit := c.Int("limit")
 	if !all && limit <= 0 {
-		return datadog.ListMonitorsRequest{}, fmt.Errorf("--limit must be > 0")
+		return monitors.ListRequest{}, fmt.Errorf("--limit must be > 0")
 	}
 	if all && c.IsSet("limit") && limit < 0 {
-		return datadog.ListMonitorsRequest{}, fmt.Errorf("--limit must be >= 0")
+		return monitors.ListRequest{}, fmt.Errorf("--limit must be >= 0")
 	}
 
 	typeFilter := strings.TrimSpace(c.String("type"))
-	req := datadog.ListMonitorsRequest{
+	req := monitors.ListRequest{
 		GroupStates: strings.TrimSpace(c.String("group-states")),
 		Name:        strings.TrimSpace(c.String("name")),
 		Type:        typeFilter,
@@ -325,21 +325,21 @@ func listMonitorsRequestFromFlags(c *cli.Context) (datadog.ListMonitorsRequest, 
 	if c.IsSet("id-offset") {
 		v := c.Int64("id-offset")
 		if v < 0 {
-			return datadog.ListMonitorsRequest{}, fmt.Errorf("--id-offset must be >= 0")
+			return monitors.ListRequest{}, fmt.Errorf("--id-offset must be >= 0")
 		}
 		req.IDOffset = &v
 	}
 	if c.IsSet("page") {
 		v := c.Int64("page")
 		if v < 0 {
-			return datadog.ListMonitorsRequest{}, fmt.Errorf("--page must be >= 0")
+			return monitors.ListRequest{}, fmt.Errorf("--page must be >= 0")
 		}
 		req.Page = &v
 	}
 	if c.IsSet("page-size") {
 		v := c.Int("page-size")
 		if v <= 0 {
-			return datadog.ListMonitorsRequest{}, fmt.Errorf("--page-size must be > 0")
+			return monitors.ListRequest{}, fmt.Errorf("--page-size must be > 0")
 		}
 		req.PageSize = v
 	}

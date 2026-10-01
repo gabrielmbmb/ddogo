@@ -7,11 +7,11 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/metrics"
 )
 
 // RenderMetricsQuery writes timeseries query results to w.
-func RenderMetricsQuery(w io.Writer, format string, result datadog.MetricsQueryResult) error {
+func RenderMetricsQuery(w io.Writer, format string, result metrics.QueryResult) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -24,7 +24,7 @@ func RenderMetricsQuery(w io.Writer, format string, result datadog.MetricsQueryR
 	}
 }
 
-func renderPrettyMetricsQuery(w io.Writer, result datadog.MetricsQueryResult) error {
+func renderPrettyMetricsQuery(w io.Writer, result metrics.QueryResult) error {
 	if result.Error != "" {
 		if _, err := fmt.Fprintf(w, "Error: %s\n", result.Error); err != nil {
 			return err
@@ -88,7 +88,7 @@ func renderPrettyMetricsQuery(w io.Writer, result datadog.MetricsQueryResult) er
 }
 
 // RenderMetricsList writes a list of metric names to w.
-func RenderMetricsList(w io.Writer, format string, result datadog.MetricsListResult) error {
+func RenderMetricsList(w io.Writer, format string, result metrics.ListResult) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -101,7 +101,7 @@ func RenderMetricsList(w io.Writer, format string, result datadog.MetricsListRes
 	}
 }
 
-func renderPrettyMetricsList(w io.Writer, result datadog.MetricsListResult) error {
+func renderPrettyMetricsList(w io.Writer, result metrics.ListResult) error {
 	if len(result.Metrics) == 0 {
 		_, err := fmt.Fprintln(w, "No metrics found.")
 		return err
@@ -124,7 +124,7 @@ func renderPrettyMetricsList(w io.Writer, result datadog.MetricsListResult) erro
 }
 
 // RenderMetricMetadata writes metric metadata to w.
-func RenderMetricMetadata(w io.Writer, format string, meta datadog.MetricMetadata) error {
+func RenderMetricMetadata(w io.Writer, format string, meta metrics.Metadata) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -137,7 +137,7 @@ func RenderMetricMetadata(w io.Writer, format string, meta datadog.MetricMetadat
 	}
 }
 
-func renderPrettyMetricMetadata(w io.Writer, meta datadog.MetricMetadata) error {
+func renderPrettyMetricMetadata(w io.Writer, meta metrics.Metadata) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 
 	if meta.MetricName != "" {
@@ -174,7 +174,7 @@ func renderPrettyMetricMetadata(w io.Writer, meta datadog.MetricMetadata) error 
 }
 
 // RenderMetricTags writes metric tags to w.
-func RenderMetricTags(w io.Writer, format string, result datadog.MetricAllTagsResult) error {
+func RenderMetricTags(w io.Writer, format string, result metrics.TagsResult) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -187,7 +187,7 @@ func RenderMetricTags(w io.Writer, format string, result datadog.MetricAllTagsRe
 	}
 }
 
-func renderPrettyMetricTags(w io.Writer, result datadog.MetricAllTagsResult) error {
+func renderPrettyMetricTags(w io.Writer, result metrics.TagsResult) error {
 	if result.MetricName != "" {
 		if _, err := fmt.Fprintf(w, "Metric: %s\n", result.MetricName); err != nil {
 			return err

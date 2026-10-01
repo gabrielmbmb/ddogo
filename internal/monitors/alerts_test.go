@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestParseMonitorStatusFilterDefault(t *testing.T) {
@@ -103,7 +101,7 @@ func TestBuildMonitorAlertsIncludesInvestigationContext(t *testing.T) {
 		t.Fatalf("unexpected status filter error: %v", err)
 	}
 	priority := int64(1)
-	monitors := []datadog.Monitor{
+	monitors := []Monitor{
 		{
 			ID:           123,
 			Name:         "Log errors",
@@ -112,7 +110,7 @@ func TestBuildMonitorAlertsIncludesInvestigationContext(t *testing.T) {
 			Message:      "API errors",
 			Priority:     &priority,
 			OverallState: "Alert",
-			State: &datadog.MonitorState{Groups: map[string]datadog.MonitorGroupState{
+			State: &State{Groups: map[string]GroupState{
 				"host:web01": {
 					Name:            "host:web01",
 					Status:          "Alert",

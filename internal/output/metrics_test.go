@@ -6,16 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/metrics"
 )
 
 func TestRenderMetricsQueryJSON(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricsQueryResult{
+	result := metrics.QueryResult{
 		Status: "ok",
 		Query:  "avg:system.cpu.idle{*}",
-		Series: []datadog.MetricsSeriesRow{
+		Series: []metrics.SeriesRow{
 			{
 				Metric: "system.cpu.idle",
 				Aggr:   "avg",
@@ -32,7 +32,7 @@ func TestRenderMetricsQueryJSON(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var decoded datadog.MetricsQueryResult
+	var decoded metrics.QueryResult
 	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
 		t.Fatalf("invalid JSON output: %v", err)
 	}
@@ -47,14 +47,14 @@ func TestRenderMetricsQueryJSON(t *testing.T) {
 func TestRenderMetricsQueryPretty(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricsQueryResult{
+	result := metrics.QueryResult{
 		Status: "ok",
-		Series: []datadog.MetricsSeriesRow{
+		Series: []metrics.SeriesRow{
 			{
 				Metric: "system.cpu.idle",
 				Aggr:   "avg",
 				Scope:  "host:web01",
-				Unit: []datadog.MetricUnit{
+				Unit: []metrics.Unit{
 					{ShortName: "%"},
 				},
 				Pointlist: [][]float64{
@@ -95,7 +95,7 @@ func TestRenderMetricsQueryPrettyEmpty(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	if err := RenderMetricsQuery(&buf, "pretty", datadog.MetricsQueryResult{}); err != nil {
+	if err := RenderMetricsQuery(&buf, "pretty", metrics.QueryResult{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !strings.Contains(buf.String(), "No data") {
@@ -107,7 +107,7 @@ func TestRenderMetricsQueryPrettyError(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	if err := RenderMetricsQuery(&buf, "pretty", datadog.MetricsQueryResult{Error: "bad query"}); err != nil {
+	if err := RenderMetricsQuery(&buf, "pretty", metrics.QueryResult{Error: "bad query"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !strings.Contains(buf.String(), "bad query") {
@@ -118,8 +118,8 @@ func TestRenderMetricsQueryPrettyError(t *testing.T) {
 func TestRenderMetricsListJSON(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricsListResult{
-		Metrics: []datadog.MetricListEntry{
+	result := metrics.ListResult{
+		Metrics: []metrics.ListEntry{
 			{ID: "system.cpu.idle", Type: "metrics", MetricType: "gauge"},
 		},
 	}
@@ -136,8 +136,8 @@ func TestRenderMetricsListJSON(t *testing.T) {
 func TestRenderMetricsListPretty(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricsListResult{
-		Metrics: []datadog.MetricListEntry{
+	result := metrics.ListResult{
+		Metrics: []metrics.ListEntry{
 			{ID: "system.cpu.idle", MetricType: "gauge"},
 			{ID: "system.load.1"},
 		},
@@ -164,7 +164,7 @@ func TestRenderMetricsListPrettyEmpty(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	if err := RenderMetricsList(&buf, "pretty", datadog.MetricsListResult{}); err != nil {
+	if err := RenderMetricsList(&buf, "pretty", metrics.ListResult{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !strings.Contains(buf.String(), "No metrics") {
@@ -175,7 +175,7 @@ func TestRenderMetricsListPrettyEmpty(t *testing.T) {
 func TestRenderMetricMetadataJSON(t *testing.T) {
 	t.Parallel()
 
-	meta := datadog.MetricMetadata{
+	meta := metrics.Metadata{
 		MetricName:  "system.cpu.idle",
 		Type:        "gauge",
 		Unit:        "percent",
@@ -195,7 +195,7 @@ func TestRenderMetricMetadataPretty(t *testing.T) {
 	t.Parallel()
 
 	interval := int64(10)
-	meta := datadog.MetricMetadata{
+	meta := metrics.Metadata{
 		MetricName:     "system.cpu.idle",
 		Type:           "gauge",
 		Unit:           "percent",
@@ -232,7 +232,7 @@ func TestRenderMetricMetadataPretty(t *testing.T) {
 func TestRenderMetricTagsJSON(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricAllTagsResult{
+	result := metrics.TagsResult{
 		MetricName:   "system.cpu.idle",
 		Tags:         []string{"host", "env"},
 		IngestedTags: []string{"version"},
@@ -250,7 +250,7 @@ func TestRenderMetricTagsJSON(t *testing.T) {
 func TestRenderMetricTagsPretty(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricAllTagsResult{
+	result := metrics.TagsResult{
 		MetricName:   "system.cpu.idle",
 		Tags:         []string{"host", "env"},
 		IngestedTags: []string{"version"},
@@ -282,7 +282,7 @@ func TestRenderMetricTagsPretty(t *testing.T) {
 func TestRenderMetricTagsPrettyEmpty(t *testing.T) {
 	t.Parallel()
 
-	result := datadog.MetricAllTagsResult{
+	result := metrics.TagsResult{
 		MetricName: "system.cpu.idle",
 	}
 
@@ -301,7 +301,7 @@ func TestRenderMetricsQueryUnsupportedFormat(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	err := RenderMetricsQuery(&buf, "xml", datadog.MetricsQueryResult{})
+	err := RenderMetricsQuery(&buf, "xml", metrics.QueryResult{})
 	if err == nil {
 		t.Fatal("expected error for unsupported format")
 	}

@@ -6,20 +6,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/errortracking"
 )
 
 func TestRenderIssueSearchResultsPretty(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderIssueSearchResults(&b, "pretty", []datadog.IssueSearchResult{
+	err := RenderIssueSearchResults(&b, "pretty", []errortracking.SearchEntry{
 		{
 			ID:               "issue-1",
 			TotalCount:       82,
 			ImpactedUsers:    4,
 			ImpactedSessions: 12,
-			Issue: &datadog.ErrorTrackingIssue{
+			Issue: &errortracking.Issue{
 				State:        "OPEN",
 				Service:      "api",
 				LastSeen:     1772006400000,
@@ -49,7 +49,7 @@ func TestRenderIssuePretty(t *testing.T) {
 
 	isCrash := false
 	var b bytes.Buffer
-	err := RenderIssue(&b, "pretty", datadog.ErrorTrackingIssue{
+	err := RenderIssue(&b, "pretty", errortracking.Issue{
 		ID:           "issue-1",
 		State:        "RESOLVED",
 		Service:      "api",
@@ -80,7 +80,7 @@ func TestRenderIssueJSON(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
-	err := RenderIssue(&b, "json", datadog.ErrorTrackingIssue{ID: "issue-1", State: "OPEN"})
+	err := RenderIssue(&b, "json", errortracking.Issue{ID: "issue-1", State: "OPEN"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

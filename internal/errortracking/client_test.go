@@ -1,4 +1,4 @@
-package datadog
+package errortracking
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestErrorTrackingSearch(t *testing.T) {
@@ -111,7 +113,7 @@ func TestErrorTrackingSearch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -123,7 +125,7 @@ func TestErrorTrackingSearch(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.ErrorTracking().Search(context.Background(), SearchIssuesRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query:   "service:api",
 		From:    from,
 		To:      to,
@@ -181,7 +183,7 @@ func TestErrorTrackingSearchDefaultsPersonaAll(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -193,7 +195,7 @@ func TestErrorTrackingSearchDefaultsPersonaAll(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.ErrorTracking().Search(context.Background(), SearchIssuesRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "service:api",
 		From:  from,
 		To:    to,
@@ -246,7 +248,7 @@ func TestErrorTrackingGetIssue(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -258,7 +260,7 @@ func TestErrorTrackingGetIssue(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	issue, err := client.ErrorTracking().GetIssue(context.Background(), issueID, []string{"assignee,team_owners"})
+	issue, err := NewClient(client).GetIssue(context.Background(), issueID, []string{"assignee,team_owners"})
 	if err != nil {
 		t.Fatalf("unexpected GetIssue error: %v", err)
 	}
@@ -316,7 +318,7 @@ func TestErrorTrackingUpdateIssueState(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -328,7 +330,7 @@ func TestErrorTrackingUpdateIssueState(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	issue, err := client.ErrorTracking().UpdateIssueState(context.Background(), issueID, "resolved")
+	issue, err := NewClient(client).UpdateIssueState(context.Background(), issueID, "resolved")
 	if err != nil {
 		t.Fatalf("unexpected UpdateIssueState error: %v", err)
 	}
@@ -377,7 +379,7 @@ func TestErrorTrackingUpdateAndDeleteIssueAssignee(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -389,7 +391,7 @@ func TestErrorTrackingUpdateAndDeleteIssueAssignee(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	issue, err := client.ErrorTracking().UpdateIssueAssignee(context.Background(), issueID, "user-1")
+	issue, err := NewClient(client).UpdateIssueAssignee(context.Background(), issueID, "user-1")
 	if err != nil {
 		t.Fatalf("unexpected UpdateIssueAssignee error: %v", err)
 	}
@@ -397,7 +399,7 @@ func TestErrorTrackingUpdateAndDeleteIssueAssignee(t *testing.T) {
 		t.Fatalf("expected assignee user-1, got %q", issue.AssigneeID)
 	}
 
-	if err := client.ErrorTracking().DeleteIssueAssignee(context.Background(), issueID); err != nil {
+	if err := NewClient(client).DeleteIssueAssignee(context.Background(), issueID); err != nil {
 		t.Fatalf("unexpected DeleteIssueAssignee error: %v", err)
 	}
 	if !deleteCalled {
@@ -408,12 +410,12 @@ func TestErrorTrackingUpdateAndDeleteIssueAssignee(t *testing.T) {
 func TestErrorTrackingClientValidation(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.ErrorTracking().Search(context.Background(), SearchIssuesRequest{
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "",
 		From:  "2026-02-25T08:00:00Z",
 		To:    "2026-02-25T09:00:00Z",
@@ -423,7 +425,7 @@ func TestErrorTrackingClientValidation(t *testing.T) {
 		t.Fatalf("expected query validation error, got %v", err)
 	}
 
-	_, err = client.ErrorTracking().Search(context.Background(), SearchIssuesRequest{
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{
 		Query:   "service:api",
 		From:    "2026-02-25T08:00:00Z",
 		To:      "2026-02-25T09:00:00Z",
@@ -435,7 +437,7 @@ func TestErrorTrackingClientValidation(t *testing.T) {
 		t.Fatalf("expected include validation error, got %v", err)
 	}
 
-	_, err = client.ErrorTracking().UpdateIssueState(context.Background(), "issue-1", "not-a-state")
+	_, err = NewClient(client).UpdateIssueState(context.Background(), "issue-1", "not-a-state")
 	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "invalid state") {
 		t.Fatalf("expected invalid state error, got %v", err)
 	}

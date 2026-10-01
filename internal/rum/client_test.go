@@ -1,4 +1,4 @@
-package datadog
+package rum
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestRUMClientSearchSinglePage(t *testing.T) {
@@ -64,7 +66,7 @@ func TestRUMClientSearchSinglePage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -76,7 +78,7 @@ func TestRUMClientSearchSinglePage(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.RUM().Search(context.Background(), SearchRUMEventsRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "@issue.id:issue-1",
 		From:  "2026-03-06T00:00:00Z",
 		To:    "2026-03-07T00:00:00Z",
@@ -146,7 +148,7 @@ func TestRUMClientSearchPaginates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -158,7 +160,7 @@ func TestRUMClientSearchPaginates(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.RUM().Search(context.Background(), SearchRUMEventsRequest{
+	result, err := NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "@issue.id:issue-1",
 		From:  "2026-03-06T00:00:00Z",
 		To:    "2026-03-07T00:00:00Z",
@@ -181,22 +183,22 @@ func TestRUMClientSearchPaginates(t *testing.T) {
 func TestRUMClientSearchValidation(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.RUM().Search(context.Background(), SearchRUMEventsRequest{Query: "*", From: "", To: "2026-03-07T00:00:00Z", Limit: 1})
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{Query: "*", From: "", To: "2026-03-07T00:00:00Z", Limit: 1})
 	if err == nil {
 		t.Fatal("expected error for missing from")
 	}
 
-	_, err = client.RUM().Search(context.Background(), SearchRUMEventsRequest{Query: "*", From: "2026-03-06T00:00:00Z", To: "", Limit: 1})
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{Query: "*", From: "2026-03-06T00:00:00Z", To: "", Limit: 1})
 	if err == nil {
 		t.Fatal("expected error for missing to")
 	}
 
-	_, err = client.RUM().Search(context.Background(), SearchRUMEventsRequest{Query: "*", From: "2026-03-06T00:00:00Z", To: "2026-03-07T00:00:00Z", Limit: 0})
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{Query: "*", From: "2026-03-06T00:00:00Z", To: "2026-03-07T00:00:00Z", Limit: 0})
 	if err == nil {
 		t.Fatal("expected error for non-positive limit")
 	}
@@ -221,7 +223,7 @@ func TestRUMClientSearchUsesProvidedSort(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -233,7 +235,7 @@ func TestRUMClientSearchUsesProvidedSort(t *testing.T) {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.RUM().Search(context.Background(), SearchRUMEventsRequest{
+	_, err = NewClient(client).Search(context.Background(), SearchRequest{
 		Query: "@issue.id:issue-1",
 		From:  "2026-03-06T00:00:00Z",
 		To:    "2026-03-07T00:00:00Z",

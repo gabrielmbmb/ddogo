@@ -1,4 +1,5 @@
-// Package datadog provides a shared HTTP transport and domain clients for the Datadog API.
+// Package datadog provides shared HTTP transport, retry policies, and API errors
+// for the Datadog API. Domain packages own endpoint clients and models.
 package datadog
 
 import (
@@ -122,36 +123,6 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}, nil
 }
 
-// Logs returns the logs domain client.
-func (c *Client) Logs() LogsClient {
-	return &logsClient{client: c}
-}
-
-// Spans returns the spans domain client.
-func (c *Client) Spans() SpansClient {
-	return &spansClient{client: c}
-}
-
-// ErrorTracking returns the error tracking domain client.
-func (c *Client) ErrorTracking() ErrorTrackingClient {
-	return &errorTrackingClient{client: c}
-}
-
-// RUM returns the RUM events domain client.
-func (c *Client) RUM() RUMClient {
-	return &rumClient{client: c}
-}
-
-// Metrics returns the metrics domain client.
-func (c *Client) Metrics() MetricsClient {
-	return &metricsClient{client: c}
-}
-
-// Monitors returns the monitors domain client.
-func (c *Client) Monitors() MonitorsClient {
-	return &monitorsClient{client: c}
-}
-
 func apiBaseURLForSite(site string) (string, error) {
 	s := strings.TrimSpace(site)
 	if s == "" {
@@ -181,11 +152,14 @@ func apiBaseURLForSite(site string) (string, error) {
 	return "https://api." + s, nil
 }
 
-func (c *Client) doJSON(ctx context.Context, method, path string, reqBody, out any, policy retryPolicy) error {
-	return c.doJSONWithQuery(ctx, method, path, nil, reqBody, out, policy)
+// DoJSON sends a JSON request to an API path using the endpoint's retry policy.
+// A nil request body sends no payload; a nil out discards the successful response.
+func (c *Client) DoJSON(ctx context.Context, method, path string, reqBody, out any, policy RetryPolicy) error {
+	return c.DoJSONWithQuery(ctx, method, path, nil, reqBody, out, policy)
 }
 
-func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query url.Values, reqBody, out any, policy retryPolicy) error {
+// DoJSONWithQuery is DoJSON with additional URL query parameters.
+func (c *Client) DoJSONWithQuery(ctx context.Context, method, path string, query url.Values, reqBody, out any, policy RetryPolicy) error {
 	var requestPayload []byte
 	if reqBody != nil {
 		payload, err := json.Marshal(reqBody)
@@ -216,7 +190,7 @@ func (c *Client) doJSONWithQuery(ctx context.Context, method, path string, query
 
 		resp, err := c.httpClient.Do(req) //nolint:gosec // Endpoint is derived from validated Datadog site/API base URL or explicit test override.
 		if err != nil {
-			if policy != noRetries && shouldRetryError(err) && attempt < c.maxRetries {
+			if policy != NoRetries && shouldRetryError(err) && attempt < c.maxRetries {
 				delay := backoffDelay(c.initialBackoff, attempt, 0)
 				if delay <= remainingWait {
 					remainingWait -= delay

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/output"
+	"github.com/gabrielmbmb/ddogo/internal/rum"
 )
 
 // RUM returns the top-level "rum" command with its subcommands.
@@ -70,7 +71,7 @@ func (d Dependencies) rumSearch() *cli.Command {
 				return err
 			}
 
-			result, err := ddClient.RUM().Search(c.Context, datadog.SearchRUMEventsRequest{
+			result, err := rum.NewClient(ddClient).Search(c.Context, rum.SearchRequest{
 				Query: c.String("query"),
 				From:  from.Format(time.RFC3339),
 				To:    to.Format(time.RFC3339),

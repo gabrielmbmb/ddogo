@@ -1,4 +1,5 @@
-// Package monitors derives alert groups and investigation context from monitor state.
+// Package monitors provides the Datadog Monitors API client and derives alert
+// groups and investigation context from monitor state.
 package monitors
 
 import (
@@ -7,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 const (
@@ -125,7 +124,7 @@ func (f StatusFilter) matches(status string) bool {
 }
 
 // BuildAlerts derives matching groups, newest first, without modifying the monitors.
-func BuildAlerts(monitors []datadog.Monitor, filter StatusFilter, contextWindow time.Duration) []Alert {
+func BuildAlerts(monitors []Monitor, filter StatusFilter, contextWindow time.Duration) []Alert {
 	alerts := make([]Alert, 0)
 	for _, monitor := range monitors {
 		if monitor.State != nil && len(monitor.State.Groups) > 0 {
@@ -161,7 +160,7 @@ func BuildAlerts(monitors []datadog.Monitor, filter StatusFilter, contextWindow 
 		if !filter.matches(status) {
 			continue
 		}
-		alert := newMonitorAlert(monitor, "", status, 0, datadog.MonitorGroupState{})
+		alert := newMonitorAlert(monitor, "", status, 0, GroupState{})
 		alert.Investigation = buildMonitorInvestigation(monitor, "", 0, contextWindow)
 		alerts = append(alerts, alert)
 	}
@@ -179,7 +178,7 @@ func BuildAlerts(monitors []datadog.Monitor, filter StatusFilter, contextWindow 
 	return alerts
 }
 
-func newMonitorAlert(monitor datadog.Monitor, group, status string, raisedAt int64, groupState datadog.MonitorGroupState) Alert {
+func newMonitorAlert(monitor Monitor, group, status string, raisedAt int64, groupState GroupState) Alert {
 	return Alert{
 		MonitorID:       monitor.ID,
 		MonitorName:     monitor.Name,
@@ -199,7 +198,7 @@ func newMonitorAlert(monitor datadog.Monitor, group, status string, raisedAt int
 	}
 }
 
-func monitorRaisedAt(groupState datadog.MonitorGroupState) int64 {
+func monitorRaisedAt(groupState GroupState) int64 {
 	for _, ts := range []int64{groupState.LastTriggeredTS, groupState.LastNoDataTS, groupState.LastNotifiedTS, groupState.LastResolvedTS} {
 		if ts > 0 {
 			return ts
@@ -208,7 +207,7 @@ func monitorRaisedAt(groupState datadog.MonitorGroupState) int64 {
 	return 0
 }
 
-func buildMonitorInvestigation(monitor datadog.Monitor, group string, raisedAt int64, contextWindow time.Duration) *Investigation {
+func buildMonitorInvestigation(monitor Monitor, group string, raisedAt int64, contextWindow time.Duration) *Investigation {
 	source, searchQuery := extractMonitorSearchQuery(monitor.Query)
 	if source == "" || strings.TrimSpace(searchQuery) == "" {
 		return nil

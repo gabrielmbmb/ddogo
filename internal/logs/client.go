@@ -1,10 +1,13 @@
-package datadog
+// Package logs provides the Datadog Logs API client and log models.
+package logs
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 const (
@@ -12,8 +15,8 @@ const (
 	maxLogsPageSize    = 1000
 )
 
-// SearchLogsRequest holds the parameters for a Datadog logs search.
-type SearchLogsRequest struct {
+// SearchRequest holds the parameters for a Datadog logs search.
+type SearchRequest struct {
 	Query       string
 	From        string
 	To          string
@@ -25,45 +28,47 @@ type SearchLogsRequest struct {
 	SkipRateLimitRetries bool
 }
 
-// LogEntry is a single log record returned by the Datadog Logs Search API.
-type LogEntry struct {
+// Entry is a single log record returned by the Datadog Logs Search API.
+type Entry struct {
 	ID         string         `json:"id,omitempty"`
 	Timestamp  string         `json:"timestamp"`
 	Message    string         `json:"message"`
 	Attributes map[string]any `json:"attributes,omitempty"`
 }
 
-// LogsSearchResult contains logs and response metadata from a search request.
-type LogsSearchResult struct {
-	Logs      []LogEntry   `json:"logs"`
-	Status    string       `json:"status,omitempty"`
-	RequestID string       `json:"request_id,omitempty"`
-	Warnings  []APIWarning `json:"warnings,omitempty"`
+// SearchResult contains logs and response metadata from a search request.
+type SearchResult struct {
+	Logs      []Entry              `json:"logs"`
+	Status    string               `json:"status,omitempty"`
+	RequestID string               `json:"request_id,omitempty"`
+	Warnings  []datadog.APIWarning `json:"warnings,omitempty"`
 }
 
-// LogsClient exposes log-search operations against the Datadog Logs API.
-type LogsClient interface {
-	Search(ctx context.Context, req SearchLogsRequest) (LogsSearchResult, error)
+// Client searches the Datadog Logs API using a shared transport.
+type Client struct {
+	client *datadog.Client
 }
 
-type logsClient struct {
-	client *Client
+// NewClient constructs a logs client using the provided transport.
+func NewClient(transport *datadog.Client) *Client {
+	return &Client{client: transport}
 }
 
-func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) (LogsSearchResult, error) {
+// Search retrieves logs up to the requested limit, following cursor pagination.
+func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if req.Limit <= 0 {
-		return LogsSearchResult{}, fmt.Errorf("limit must be > 0")
+		return SearchResult{}, fmt.Errorf("limit must be > 0")
 	}
 	if strings.TrimSpace(req.From) == "" || strings.TrimSpace(req.To) == "" {
-		return LogsSearchResult{}, fmt.Errorf("from and to are required")
+		return SearchResult{}, fmt.Errorf("from and to are required")
 	}
 
-	policy := retryTransient
+	policy := datadog.RetryTransient
 	if req.SkipRateLimitRetries {
-		policy = retryExceptRateLimit
+		policy = datadog.RetryExceptRateLimit
 	}
 	cursor := ""
-	result := LogsSearchResult{Logs: make([]LogEntry, 0, req.Limit)}
+	result := SearchResult{Logs: make([]Entry, 0, req.Limit)}
 
 	for len(result.Logs) < req.Limit {
 		remaining := req.Limit - len(result.Logs)
@@ -100,8 +105,8 @@ func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) (LogsSea
 		}
 
 		var resp logsListResponse
-		if err := c.client.doJSON(ctx, http.MethodPost, logsSearchEndpoint, body, &resp, policy); err != nil {
-			return LogsSearchResult{}, err
+		if err := c.client.DoJSON(ctx, http.MethodPost, logsSearchEndpoint, body, &resp, policy); err != nil {
+			return SearchResult{}, err
 		}
 		if resp.Meta.Status != "" {
 			result.Status = resp.Meta.Status
@@ -114,7 +119,7 @@ func (c *logsClient) Search(ctx context.Context, req SearchLogsRequest) (LogsSea
 		}
 
 		for _, item := range resp.Data {
-			entry := LogEntry{
+			entry := Entry{
 				ID:        item.ID,
 				Timestamp: item.Attributes.Timestamp,
 				Message:   item.Attributes.Message,
@@ -181,9 +186,9 @@ type logsListResponse struct {
 		Page struct {
 			After string `json:"after"`
 		} `json:"page"`
-		RequestID string       `json:"request_id"`
-		Status    string       `json:"status"`
-		Warnings  []APIWarning `json:"warnings"`
+		RequestID string               `json:"request_id"`
+		Status    string               `json:"status"`
+		Warnings  []datadog.APIWarning `json:"warnings"`
 	} `json:"meta"`
 }
 

@@ -1,4 +1,4 @@
-package datadog
+package monitors
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 func TestMonitorsClientCreateBasic(t *testing.T) {
@@ -68,7 +70,7 @@ func TestMonitorsClientCreateBasic(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{
+	client, err := datadog.NewClient(datadog.ClientConfig{
 		APIKey:         "api-key",
 		AppKey:         "app-key",
 		APIBaseURL:     server.URL,
@@ -81,7 +83,7 @@ func TestMonitorsClientCreateBasic(t *testing.T) {
 	}
 
 	priority := int64(2)
-	monitor, err := client.Monitors().Create(context.Background(), CreateMonitorRequest{
+	monitor, err := NewClient(client).Create(context.Background(), CreateRequest{
 		Name:     "High CPU",
 		Type:     "query alert",
 		Query:    "avg(last_5m):avg:system.cpu.user{*} > 80",
@@ -124,12 +126,12 @@ func TestMonitorsClientCreateUsesRawBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	monitor, err := client.Monitors().Create(context.Background(), CreateMonitorRequest{Body: map[string]any{
+	monitor, err := NewClient(client).Create(context.Background(), CreateRequest{Body: map[string]any{
 		"name":                   "Raw monitor",
 		"type":                   "log alert",
 		"query":                  "logs(\"status:error\").index(\"*\").rollup(\"count\").last(\"5m\") > 0",
@@ -146,12 +148,12 @@ func TestMonitorsClientCreateUsesRawBody(t *testing.T) {
 func TestMonitorsClientCreateRejectsBlankRequiredFields(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	_, err = client.Monitors().Create(context.Background(), CreateMonitorRequest{Type: "query alert", Query: "avg(last_5m):avg:system.cpu.user{*} > 80"})
+	_, err = NewClient(client).Create(context.Background(), CreateRequest{Type: "query alert", Query: "avg(last_5m):avg:system.cpu.user{*} > 80"})
 	if err == nil {
 		t.Fatal("expected error for missing name")
 	}
@@ -207,14 +209,14 @@ func TestMonitorsClientListBasic(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
 	withDowntimes := true
 	page := int64(0)
-	result, err := client.Monitors().List(context.Background(), ListMonitorsRequest{
+	result, err := NewClient(client).List(context.Background(), ListRequest{
 		GroupStates:   "alert,warn",
 		Name:          "cpu",
 		Tags:          "env:prod",
@@ -254,12 +256,12 @@ func TestMonitorsClientListFiltersByType(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Monitors().List(context.Background(), ListMonitorsRequest{Type: "log alert,trace-analytics alert"})
+	result, err := NewClient(client).List(context.Background(), ListRequest{Type: "log alert,trace-analytics alert"})
 	if err != nil {
 		t.Fatalf("unexpected List error: %v", err)
 	}
@@ -300,12 +302,12 @@ func TestMonitorsClientListDecodesGroupState(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Monitors().List(context.Background(), ListMonitorsRequest{GroupStates: "alert,warn,no data"})
+	result, err := NewClient(client).List(context.Background(), ListRequest{GroupStates: "alert,warn,no data"})
 	if err != nil {
 		t.Fatalf("unexpected List error: %v", err)
 	}
@@ -337,12 +339,12 @@ func TestMonitorsClientListTrimsToLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Monitors().List(context.Background(), ListMonitorsRequest{Limit: 2})
+	result, err := NewClient(client).List(context.Background(), ListRequest{Limit: 2})
 	if err != nil {
 		t.Fatalf("unexpected List error: %v", err)
 	}
@@ -365,12 +367,12 @@ func TestMonitorsClientListAllowsUnlimited(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 1, InitialBackoff: time.Millisecond})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
-	result, err := client.Monitors().List(context.Background(), ListMonitorsRequest{Limit: 0})
+	result, err := NewClient(client).List(context.Background(), ListRequest{Limit: 0})
 	if err != nil {
 		t.Fatalf("unexpected List error: %v", err)
 	}
@@ -382,18 +384,18 @@ func TestMonitorsClientListAllowsUnlimited(t *testing.T) {
 func TestMonitorsClientListRejectsInvalidPagination(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient(ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
+	client, err := datadog.NewClient(datadog.ClientConfig{APIKey: "api-key", AppKey: "app-key", APIBaseURL: "https://api.example.test"})
 	if err != nil {
 		t.Fatalf("unexpected NewClient error: %v", err)
 	}
 
 	page := int64(-1)
-	_, err = client.Monitors().List(context.Background(), ListMonitorsRequest{Page: &page})
+	_, err = NewClient(client).List(context.Background(), ListRequest{Page: &page})
 	if err == nil {
 		t.Fatal("expected error for negative page")
 	}
 
-	_, err = client.Monitors().List(context.Background(), ListMonitorsRequest{Limit: -1})
+	_, err = NewClient(client).List(context.Background(), ListRequest{Limit: -1})
 	if err == nil {
 		t.Fatal("expected error for negative limit")
 	}

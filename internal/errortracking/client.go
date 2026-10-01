@@ -1,4 +1,5 @@
-package datadog
+// Package errortracking provides the Datadog Error Tracking API client and issue models.
+package errortracking
 
 import (
 	"context"
@@ -7,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 const (
@@ -67,8 +70,8 @@ var (
 	}
 )
 
-// SearchIssuesRequest holds query parameters for error tracking issue search.
-type SearchIssuesRequest struct {
+// SearchRequest holds query parameters for error tracking issue search.
+type SearchRequest struct {
 	Query   string
 	From    string
 	To      string
@@ -79,8 +82,8 @@ type SearchIssuesRequest struct {
 	Include []string
 }
 
-// ErrorTrackingIssue is a normalized issue record from Datadog Error Tracking.
-type ErrorTrackingIssue struct {
+// Issue is a normalized issue record from Datadog Error Tracking.
+type Issue struct {
 	ID               string   `json:"id"`
 	ErrorMessage     string   `json:"error_message,omitempty"`
 	ErrorType        string   `json:"error_type,omitempty"`
@@ -100,75 +103,73 @@ type ErrorTrackingIssue struct {
 	TeamOwnerIDs     []string `json:"team_owner_ids,omitempty"`
 }
 
-// IssueSearchResult is one issue entry returned by search.
-type IssueSearchResult struct {
-	ID               string              `json:"id"`
-	ImpactedSessions int64               `json:"impacted_sessions,omitempty"`
-	ImpactedUsers    int64               `json:"impacted_users,omitempty"`
-	TotalCount       int64               `json:"total_count,omitempty"`
-	Issue            *ErrorTrackingIssue `json:"issue,omitempty"`
+// SearchEntry is one issue entry returned by search.
+type SearchEntry struct {
+	ID               string `json:"id"`
+	ImpactedSessions int64  `json:"impacted_sessions,omitempty"`
+	ImpactedUsers    int64  `json:"impacted_users,omitempty"`
+	TotalCount       int64  `json:"total_count,omitempty"`
+	Issue            *Issue `json:"issue,omitempty"`
 }
 
-// IssuesSearchResult is the search output used by CLI renderers.
-type IssuesSearchResult struct {
-	Issues []IssueSearchResult `json:"issues"`
+// SearchResult is the search output used by CLI renderers.
+type SearchResult struct {
+	Issues []SearchEntry `json:"issues"`
 }
 
-// ErrorTrackingClient exposes operations for Datadog Error Tracking issues.
-type ErrorTrackingClient interface {
-	Search(ctx context.Context, req SearchIssuesRequest) (IssuesSearchResult, error)
-	GetIssue(ctx context.Context, issueID string, include []string) (ErrorTrackingIssue, error)
-	UpdateIssueState(ctx context.Context, issueID, state string) (ErrorTrackingIssue, error)
-	UpdateIssueAssignee(ctx context.Context, issueID, assigneeID string) (ErrorTrackingIssue, error)
-	DeleteIssueAssignee(ctx context.Context, issueID string) error
+// Client accesses the Datadog Error Tracking API using a shared transport.
+type Client struct {
+	client *datadog.Client
 }
 
-type errorTrackingClient struct {
-	client *Client
+// NewClient constructs an error tracking client using the provided transport.
+func NewClient(transport *datadog.Client) *Client {
+	return &Client{client: transport}
 }
 
-func (c *errorTrackingClient) Search(ctx context.Context, req SearchIssuesRequest) (IssuesSearchResult, error) {
+// Search retrieves issues and their included relationships.
+func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if strings.TrimSpace(req.Query) == "" {
-		return IssuesSearchResult{}, fmt.Errorf("query is required")
+		return SearchResult{}, fmt.Errorf("query is required")
 	}
 	if req.Limit <= 0 {
-		return IssuesSearchResult{}, fmt.Errorf("limit must be > 0")
+		return SearchResult{}, fmt.Errorf("limit must be > 0")
 	}
 	if req.Limit > MaxIssuesSearchLimit {
-		return IssuesSearchResult{}, fmt.Errorf("limit must be <= %d", MaxIssuesSearchLimit)
+		return SearchResult{}, fmt.Errorf("limit must be <= %d", MaxIssuesSearchLimit)
 	}
 
 	fromMillis, err := parseTimeToMillis("from", req.From)
 	if err != nil {
-		return IssuesSearchResult{}, err
+		return SearchResult{}, err
 	}
 	toMillis, err := parseTimeToMillis("to", req.To)
 	if err != nil {
-		return IssuesSearchResult{}, err
+		return SearchResult{}, err
 	}
 	if toMillis < fromMillis {
-		return IssuesSearchResult{}, fmt.Errorf("to must be >= from")
+		return SearchResult{}, fmt.Errorf("to must be >= from")
 	}
 
 	track, err := normalizeEnum("track", req.Track, validIssueSearchTracks, allowedTrackValues)
 	if err != nil {
-		return IssuesSearchResult{}, err
+		return SearchResult{}, err
 	}
 	persona, err := normalizeEnum("persona", req.Persona, validIssueSearchPersonas, allowedPersonaValues)
 	if err != nil {
-		return IssuesSearchResult{}, err
+		return SearchResult{}, err
 	}
 	if track == "" && persona == "" {
 		persona = validIssueSearchPersonas["all"]
 	}
 	orderBy, err := normalizeEnum("order_by", req.OrderBy, validIssueSearchOrderBy, allowedOrderByValues)
 	if err != nil {
-		return IssuesSearchResult{}, err
+		return SearchResult{}, err
 	}
 
 	includes, err := normalizeList(req.Include, validIssueSearchIncludes, "include", allowedSearchIncludes)
 	if err != nil {
-		return IssuesSearchResult{}, err
+		return SearchResult{}, err
 	}
 	hasIssueInclude := false
 	for _, include := range includes {
@@ -207,11 +208,11 @@ func (c *errorTrackingClient) Search(ctx context.Context, req SearchIssuesReques
 	}
 
 	var resp issuesSearchResponseEnvelope
-	if err := c.client.doJSONWithQuery(ctx, http.MethodPost, errorTrackingIssuesSearchEndpoint, query, body, &resp, retryTransient); err != nil {
-		return IssuesSearchResult{}, err
+	if err := c.client.DoJSONWithQuery(ctx, http.MethodPost, errorTrackingIssuesSearchEndpoint, query, body, &resp, datadog.RetryTransient); err != nil {
+		return SearchResult{}, err
 	}
 
-	issuesByID := make(map[string]ErrorTrackingIssue)
+	issuesByID := make(map[string]Issue)
 	for _, item := range resp.Included {
 		if item.Type != issueResourceType {
 			continue
@@ -220,9 +221,9 @@ func (c *errorTrackingClient) Search(ctx context.Context, req SearchIssuesReques
 		issuesByID[issue.ID] = issue
 	}
 
-	result := IssuesSearchResult{Issues: make([]IssueSearchResult, 0, min(req.Limit, len(resp.Data)))}
+	result := SearchResult{Issues: make([]SearchEntry, 0, min(req.Limit, len(resp.Data)))}
 	for _, item := range resp.Data {
-		entry := IssueSearchResult{
+		entry := SearchEntry{
 			ID:               item.ID,
 			ImpactedSessions: item.Attributes.ImpactedSessions,
 			ImpactedUsers:    item.Attributes.ImpactedUsers,
@@ -247,15 +248,16 @@ func (c *errorTrackingClient) Search(ctx context.Context, req SearchIssuesReques
 	return result, nil
 }
 
-func (c *errorTrackingClient) GetIssue(ctx context.Context, issueID string, include []string) (ErrorTrackingIssue, error) {
+// GetIssue retrieves an issue and the requested relationships.
+func (c *Client) GetIssue(ctx context.Context, issueID string, include []string) (Issue, error) {
 	issueID = strings.TrimSpace(issueID)
 	if issueID == "" {
-		return ErrorTrackingIssue{}, fmt.Errorf("issue_id is required")
+		return Issue{}, fmt.Errorf("issue_id is required")
 	}
 
 	includes, err := normalizeList(include, validGetIssueIncludes, "include", allowedGetIncludes)
 	if err != nil {
-		return ErrorTrackingIssue{}, err
+		return Issue{}, err
 	}
 
 	query := url.Values{}
@@ -265,24 +267,25 @@ func (c *errorTrackingClient) GetIssue(ctx context.Context, issueID string, incl
 
 	var resp issueResponseEnvelope
 	path := fmt.Sprintf("%s/%s", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	if err := c.client.doJSONWithQuery(ctx, http.MethodGet, path, query, nil, &resp, retryTransient); err != nil {
-		return ErrorTrackingIssue{}, err
+	if err := c.client.DoJSONWithQuery(ctx, http.MethodGet, path, query, nil, &resp, datadog.RetryTransient); err != nil {
+		return Issue{}, err
 	}
 	return mapIssueResource(resp.Data), nil
 }
 
-func (c *errorTrackingClient) UpdateIssueState(ctx context.Context, issueID, state string) (ErrorTrackingIssue, error) {
+// UpdateIssueState sets an issue's state.
+func (c *Client) UpdateIssueState(ctx context.Context, issueID, state string) (Issue, error) {
 	issueID = strings.TrimSpace(issueID)
 	if issueID == "" {
-		return ErrorTrackingIssue{}, fmt.Errorf("issue_id is required")
+		return Issue{}, fmt.Errorf("issue_id is required")
 	}
 
 	normalizedState, err := normalizeEnum("state", state, validIssueStates, allowedStateValues)
 	if err != nil {
-		return ErrorTrackingIssue{}, err
+		return Issue{}, err
 	}
 	if normalizedState == "" {
-		return ErrorTrackingIssue{}, fmt.Errorf("state is required")
+		return Issue{}, fmt.Errorf("state is required")
 	}
 
 	body := issueUpdateStateRequestEnvelope{
@@ -297,20 +300,21 @@ func (c *errorTrackingClient) UpdateIssueState(ctx context.Context, issueID, sta
 
 	var resp issueResponseEnvelope
 	path := fmt.Sprintf("%s/%s/state", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	if err := c.client.doJSON(ctx, http.MethodPut, path, body, &resp, retryTransient); err != nil {
-		return ErrorTrackingIssue{}, err
+	if err := c.client.DoJSON(ctx, http.MethodPut, path, body, &resp, datadog.RetryTransient); err != nil {
+		return Issue{}, err
 	}
 	return mapIssueResource(resp.Data), nil
 }
 
-func (c *errorTrackingClient) UpdateIssueAssignee(ctx context.Context, issueID, assigneeID string) (ErrorTrackingIssue, error) {
+// UpdateIssueAssignee assigns an issue to a user.
+func (c *Client) UpdateIssueAssignee(ctx context.Context, issueID, assigneeID string) (Issue, error) {
 	issueID = strings.TrimSpace(issueID)
 	if issueID == "" {
-		return ErrorTrackingIssue{}, fmt.Errorf("issue_id is required")
+		return Issue{}, fmt.Errorf("issue_id is required")
 	}
 	assigneeID = strings.TrimSpace(assigneeID)
 	if assigneeID == "" {
-		return ErrorTrackingIssue{}, fmt.Errorf("assignee_id is required")
+		return Issue{}, fmt.Errorf("assignee_id is required")
 	}
 
 	body := issueUpdateAssigneeRequestEnvelope{
@@ -322,24 +326,25 @@ func (c *errorTrackingClient) UpdateIssueAssignee(ctx context.Context, issueID, 
 
 	var resp issueResponseEnvelope
 	path := fmt.Sprintf("%s/%s/assignee", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	if err := c.client.doJSON(ctx, http.MethodPut, path, body, &resp, retryTransient); err != nil {
-		return ErrorTrackingIssue{}, err
+	if err := c.client.DoJSON(ctx, http.MethodPut, path, body, &resp, datadog.RetryTransient); err != nil {
+		return Issue{}, err
 	}
 	return mapIssueResource(resp.Data), nil
 }
 
-func (c *errorTrackingClient) DeleteIssueAssignee(ctx context.Context, issueID string) error {
+// DeleteIssueAssignee removes the assignee from an issue.
+func (c *Client) DeleteIssueAssignee(ctx context.Context, issueID string) error {
 	issueID = strings.TrimSpace(issueID)
 	if issueID == "" {
 		return fmt.Errorf("issue_id is required")
 	}
 
 	path := fmt.Sprintf("%s/%s/assignee", errorTrackingIssuesEndpoint, url.PathEscape(issueID))
-	return c.client.doJSON(ctx, http.MethodDelete, path, nil, nil, retryTransient)
+	return c.client.DoJSON(ctx, http.MethodDelete, path, nil, nil, datadog.RetryTransient)
 }
 
-func mapIssueResource(resource issueResource) ErrorTrackingIssue {
-	issue := ErrorTrackingIssue{
+func mapIssueResource(resource issueResource) Issue {
+	issue := Issue{
 		ID:               resource.ID,
 		ErrorMessage:     resource.Attributes.ErrorMessage,
 		ErrorType:        resource.Attributes.ErrorType,

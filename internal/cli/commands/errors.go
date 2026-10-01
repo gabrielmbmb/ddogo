@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/errortracking"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
 
@@ -53,7 +53,7 @@ func (d Dependencies) errorSearch() *cli.Command {
 			&cli.IntFlag{
 				Name:  "limit",
 				Usage: "Maximum number of issues to return (Datadog max is 100)",
-				Value: datadog.MaxIssuesSearchLimit,
+				Value: errortracking.MaxIssuesSearchLimit,
 			},
 			&cli.StringFlag{
 				Name:  "track",
@@ -82,8 +82,8 @@ func (d Dependencies) errorSearch() *cli.Command {
 			if c.Int("limit") <= 0 {
 				return fmt.Errorf("--limit must be > 0")
 			}
-			if c.Int("limit") > datadog.MaxIssuesSearchLimit {
-				return fmt.Errorf("--limit must be <= %d", datadog.MaxIssuesSearchLimit)
+			if c.Int("limit") > errortracking.MaxIssuesSearchLimit {
+				return fmt.Errorf("--limit must be <= %d", errortracking.MaxIssuesSearchLimit)
 			}
 
 			now := d.Now().UTC()
@@ -97,7 +97,7 @@ func (d Dependencies) errorSearch() *cli.Command {
 				return err
 			}
 
-			result, err := ddClient.ErrorTracking().Search(c.Context, datadog.SearchIssuesRequest{
+			result, err := errortracking.NewClient(ddClient).Search(c.Context, errortracking.SearchRequest{
 				Query:   c.String("query"),
 				From:    from.Format(time.RFC3339),
 				To:      to.Format(time.RFC3339),
@@ -144,7 +144,7 @@ func (d Dependencies) errorGet() *cli.Command {
 				return err
 			}
 
-			issue, err := ddClient.ErrorTracking().GetIssue(c.Context, issueID, parseCSVFlag(c.String("include")))
+			issue, err := errortracking.NewClient(ddClient).GetIssue(c.Context, issueID, parseCSVFlag(c.String("include")))
 			if err != nil {
 				return err
 			}
@@ -183,7 +183,7 @@ func (d Dependencies) errorSetState() *cli.Command {
 				return err
 			}
 
-			issue, err := ddClient.ErrorTracking().UpdateIssueState(c.Context, issueID, c.String("state"))
+			issue, err := errortracking.NewClient(ddClient).UpdateIssueState(c.Context, issueID, c.String("state"))
 			if err != nil {
 				return err
 			}
@@ -223,7 +223,7 @@ func (d Dependencies) errorAssign() *cli.Command {
 				return err
 			}
 
-			issue, err := ddClient.ErrorTracking().UpdateIssueAssignee(c.Context, issueID, c.String("assignee-id"))
+			issue, err := errortracking.NewClient(ddClient).UpdateIssueAssignee(c.Context, issueID, c.String("assignee-id"))
 			if err != nil {
 				return err
 			}
@@ -255,7 +255,7 @@ func (d Dependencies) errorUnassign() *cli.Command {
 				return err
 			}
 
-			if err := ddClient.ErrorTracking().DeleteIssueAssignee(c.Context, issueID); err != nil {
+			if err := errortracking.NewClient(ddClient).DeleteIssueAssignee(c.Context, issueID); err != nil {
 				return err
 			}
 

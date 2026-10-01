@@ -8,11 +8,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 )
 
 // RenderLogs writes logs to w in the requested format ("pretty" or "json").
-func RenderLogs(w io.Writer, format string, logs []datadog.LogEntry) error {
+func RenderLogs(w io.Writer, format string, logs []logs.Entry) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -27,7 +27,7 @@ func RenderLogs(w io.Writer, format string, logs []datadog.LogEntry) error {
 
 const prettyMessageMaxRunes = 240
 
-func renderPretty(w io.Writer, logs []datadog.LogEntry) error {
+func renderPretty(w io.Writer, logs []logs.Entry) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "TIMESTAMP\tMESSAGE"); err != nil {
 		return err

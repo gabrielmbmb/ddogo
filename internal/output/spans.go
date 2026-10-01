@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/spans"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 // RenderSpans writes spans to w in the requested format ("pretty" or "json").
-func RenderSpans(w io.Writer, format string, spans []datadog.SpanEntry) error {
+func RenderSpans(w io.Writer, format string, spans []spans.Entry) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -32,7 +32,7 @@ func RenderSpans(w io.Writer, format string, spans []datadog.SpanEntry) error {
 	}
 }
 
-func spansContainLogContext(spans []datadog.SpanEntry) bool {
+func spansContainLogContext(spans []spans.Entry) bool {
 	for _, span := range spans {
 		if span.Logs != nil || strings.TrimSpace(span.LogsError) != "" {
 			return true
@@ -41,7 +41,7 @@ func spansContainLogContext(spans []datadog.SpanEntry) bool {
 	return false
 }
 
-func renderPrettySpansTable(w io.Writer, spans []datadog.SpanEntry) error {
+func renderPrettySpansTable(w io.Writer, spans []spans.Entry) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "START\tDUR\tSERVICE\tRESOURCE\tTRACE_ID"); err != nil {
 		return err
@@ -62,7 +62,7 @@ func renderPrettySpansTable(w io.Writer, spans []datadog.SpanEntry) error {
 	return tw.Flush()
 }
 
-func renderPrettySpansWithLogs(w io.Writer, spans []datadog.SpanEntry) error {
+func renderPrettySpansWithLogs(w io.Writer, spans []spans.Entry) error {
 	for i, span := range spans {
 		if i > 0 {
 			if _, err := fmt.Fprintln(w); err != nil {

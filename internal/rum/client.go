@@ -1,10 +1,13 @@
-package datadog
+// Package rum provides the Datadog RUM API client and event models.
+package rum
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/gabrielmbmb/ddogo/internal/datadog"
 )
 
 const (
@@ -12,8 +15,8 @@ const (
 	maxRUMPageSize          = 1000
 )
 
-// SearchRUMEventsRequest holds the parameters for a Datadog RUM events search.
-type SearchRUMEventsRequest struct {
+// SearchRequest holds the parameters for a Datadog RUM events search.
+type SearchRequest struct {
 	Query string
 	From  string
 	To    string
@@ -21,8 +24,8 @@ type SearchRUMEventsRequest struct {
 	Sort  string
 }
 
-// RUMEvent is a single RUM event record returned by Datadog.
-type RUMEvent struct {
+// Event is a single RUM event record returned by Datadog.
+type Event struct {
 	ID         string         `json:"id,omitempty"`
 	Type       string         `json:"type,omitempty"`
 	Timestamp  string         `json:"timestamp,omitempty"`
@@ -31,33 +34,35 @@ type RUMEvent struct {
 	Attributes map[string]any `json:"attributes,omitempty"`
 }
 
-// RUMEventsSearchResult contains RUM events and response metadata from a search request.
-type RUMEventsSearchResult struct {
-	Events    []RUMEvent   `json:"events"`
-	Status    string       `json:"status,omitempty"`
-	RequestID string       `json:"request_id,omitempty"`
-	Warnings  []APIWarning `json:"warnings,omitempty"`
+// SearchResult contains RUM events and response metadata from a search request.
+type SearchResult struct {
+	Events    []Event              `json:"events"`
+	Status    string               `json:"status,omitempty"`
+	RequestID string               `json:"request_id,omitempty"`
+	Warnings  []datadog.APIWarning `json:"warnings,omitempty"`
 }
 
-// RUMClient exposes RUM event-search operations against the Datadog API.
-type RUMClient interface {
-	Search(ctx context.Context, req SearchRUMEventsRequest) (RUMEventsSearchResult, error)
+// Client searches the Datadog RUM API using a shared transport.
+type Client struct {
+	client *datadog.Client
 }
 
-type rumClient struct {
-	client *Client
+// NewClient constructs a RUM client using the provided transport.
+func NewClient(transport *datadog.Client) *Client {
+	return &Client{client: transport}
 }
 
-func (c *rumClient) Search(ctx context.Context, req SearchRUMEventsRequest) (RUMEventsSearchResult, error) {
+// Search retrieves RUM events up to the requested limit, following cursor pagination.
+func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if req.Limit <= 0 {
-		return RUMEventsSearchResult{}, fmt.Errorf("limit must be > 0")
+		return SearchResult{}, fmt.Errorf("limit must be > 0")
 	}
 	if strings.TrimSpace(req.From) == "" || strings.TrimSpace(req.To) == "" {
-		return RUMEventsSearchResult{}, fmt.Errorf("from and to are required")
+		return SearchResult{}, fmt.Errorf("from and to are required")
 	}
 
 	cursor := ""
-	result := RUMEventsSearchResult{Events: make([]RUMEvent, 0, req.Limit)}
+	result := SearchResult{Events: make([]Event, 0, req.Limit)}
 
 	for len(result.Events) < req.Limit {
 		remaining := req.Limit - len(result.Events)
@@ -85,8 +90,8 @@ func (c *rumClient) Search(ctx context.Context, req SearchRUMEventsRequest) (RUM
 		}
 
 		var resp rumEventsSearchResponse
-		if err := c.client.doJSON(ctx, http.MethodPost, rumEventsSearchEndpoint, body, &resp, retryTransient); err != nil {
-			return RUMEventsSearchResult{}, err
+		if err := c.client.DoJSON(ctx, http.MethodPost, rumEventsSearchEndpoint, body, &resp, datadog.RetryTransient); err != nil {
+			return SearchResult{}, err
 		}
 
 		if resp.Meta.Status != "" {
@@ -100,7 +105,7 @@ func (c *rumClient) Search(ctx context.Context, req SearchRUMEventsRequest) (RUM
 		}
 
 		for _, item := range resp.Data {
-			event := RUMEvent{
+			event := Event{
 				ID:        item.ID,
 				Type:      item.Type,
 				Timestamp: item.Attributes.Timestamp,
@@ -150,9 +155,9 @@ type rumEventsSearchResponse struct {
 		Page struct {
 			After string `json:"after"`
 		} `json:"page"`
-		RequestID string       `json:"request_id"`
-		Status    string       `json:"status"`
-		Warnings  []APIWarning `json:"warnings"`
+		RequestID string               `json:"request_id"`
+		Status    string               `json:"status"`
+		Warnings  []datadog.APIWarning `json:"warnings"`
 	} `json:"meta"`
 }
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/monitors"
 	"github.com/gabrielmbmb/ddogo/internal/output"
 )
@@ -41,7 +40,7 @@ func (d Dependencies) monitorsAlerts() *cli.Command {
 			if err != nil {
 				return fmt.Errorf("invalid --status: %w", err)
 			}
-			req := datadog.ListMonitorsRequest{
+			req := monitors.ListRequest{
 				GroupStates: filter.GroupStates,
 				Name:        strings.TrimSpace(c.String("name")),
 				Type:        strings.TrimSpace(c.String("type")),
@@ -56,7 +55,7 @@ func (d Dependencies) monitorsAlerts() *cli.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.Monitors().List(c.Context, req)
+			result, err := monitors.NewClient(client).List(c.Context, req)
 			if err != nil {
 				return err
 			}

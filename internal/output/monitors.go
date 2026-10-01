@@ -9,12 +9,11 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
 	"github.com/gabrielmbmb/ddogo/internal/monitors"
 )
 
 // RenderMonitors writes monitor list results to w.
-func RenderMonitors(w io.Writer, format string, monitors []datadog.Monitor) error {
+func RenderMonitors(w io.Writer, format string, monitors []monitors.Monitor) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -28,7 +27,7 @@ func RenderMonitors(w io.Writer, format string, monitors []datadog.Monitor) erro
 }
 
 // RenderMonitor writes a single monitor to w.
-func RenderMonitor(w io.Writer, format string, monitor datadog.Monitor) error {
+func RenderMonitor(w io.Writer, format string, monitor monitors.Monitor) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -55,7 +54,7 @@ func RenderMonitorAlerts(w io.Writer, format string, alerts []monitors.Alert) er
 	}
 }
 
-func renderPrettyMonitors(w io.Writer, monitors []datadog.Monitor) error {
+func renderPrettyMonitors(w io.Writer, monitors []monitors.Monitor) error {
 	if len(monitors) == 0 {
 		_, err := fmt.Fprintln(w, "No monitors found.")
 		return err
@@ -82,7 +81,7 @@ func renderPrettyMonitors(w io.Writer, monitors []datadog.Monitor) error {
 	return tw.Flush()
 }
 
-func renderPrettyMonitor(w io.Writer, monitor datadog.Monitor) error {
+func renderPrettyMonitor(w io.Writer, monitor monitors.Monitor) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "FIELD\tVALUE"); err != nil {
 		return err

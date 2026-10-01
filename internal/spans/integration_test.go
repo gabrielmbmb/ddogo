@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/logs"
 )
 
 func TestEnrichmentRateLimitBudget(t *testing.T) {
@@ -37,10 +38,10 @@ func TestEnrichmentRateLimitBudget(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-				return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{{SpanID: "span-1"}}}, nil
-			}}, client.Logs())
-			result, err := svc.Search(context.Background(), SearchRequest{
+			svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, SearchRequest) (SearchResult, error) {
+				return SearchResult{Spans: []Entry{{SpanID: "span-1"}}}, nil
+			}}, logs.NewClient(client))
+			result, err := svc.Search(context.Background(), SearchOptions{
 				From: "2026-02-25T07:45:00Z", To: "2026-02-25T08:00:00Z", Limit: 1,
 				WithLogs: true, LogsFrom: "2026-02-25T07:45:00Z", LogsTo: "2026-02-25T08:00:00Z", LogsLimit: 1,
 				LogsRateLimitMode: tt.mode, LogsRateLimitWait: time.Nanosecond, LogsRateLimitMaxWaits: 2,
@@ -59,17 +60,17 @@ func TestEnrichmentCancellationIsNotSuccess(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logs := &fakeLogsClient{searchFn: func(ctx context.Context, req datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
+	logs := &fakeLogsClient{searchFn: func(ctx context.Context, req logs.SearchRequest) (logs.SearchResult, error) {
 		if !req.SkipRateLimitRetries {
 			t.Error("enrichment must own rate-limit retries")
 		}
 		cancel()
-		return datadog.LogsSearchResult{}, ctx.Err()
+		return logs.SearchResult{}, ctx.Err()
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{{SpanID: "span-1"}, {SpanID: "span-2"}}}, nil
+	svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, SearchRequest) (SearchResult, error) {
+		return SearchResult{Spans: []Entry{{SpanID: "span-1"}, {SpanID: "span-2"}}}, nil
 	}}, logs)
-	_, err := svc.Search(ctx, SearchRequest{
+	_, err := svc.Search(ctx, SearchOptions{
 		From: "start", To: "end", Limit: 2,
 		WithLogs: true, LogsFrom: "start", LogsTo: "end", LogsLimit: 1, LogsConcurrency: 1,
 	})
@@ -80,15 +81,15 @@ func TestEnrichmentCancellationIsNotSuccess(t *testing.T) {
 
 func TestEnrichmentRejectsRetryAfterAboveConfiguredWait(t *testing.T) {
 	t.Parallel()
-	logs := &fakeLogsClient{searchFn: func(context.Context, datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
-		return datadog.LogsSearchResult{}, &datadog.APIError{StatusCode: 429, RetryAfter: time.Hour}
+	logs := &fakeLogsClient{searchFn: func(context.Context, logs.SearchRequest) (logs.SearchResult, error) {
+		return logs.SearchResult{}, &datadog.APIError{StatusCode: 429, RetryAfter: time.Hour}
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{{SpanID: "span-1"}}}, nil
+	svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, SearchRequest) (SearchResult, error) {
+		return SearchResult{Spans: []Entry{{SpanID: "span-1"}}}, nil
 	}}, logs)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	result, err := svc.Search(ctx, SearchRequest{
+	result, err := svc.Search(ctx, SearchOptions{
 		From: "start", To: "end", Limit: 1,
 		WithLogs: true, LogsFrom: "start", LogsTo: "end", LogsLimit: 1,
 		LogsRateLimitMode: "wait", LogsRateLimitWait: time.Millisecond, LogsRateLimitMaxWaits: 3,
@@ -106,19 +107,19 @@ func TestEnrichmentHonorsRetryAfter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	requested := make(chan struct{}, 1)
-	logs := &fakeLogsClient{searchFn: func(context.Context, datadog.SearchLogsRequest) (datadog.LogsSearchResult, error) {
+	logs := &fakeLogsClient{searchFn: func(context.Context, logs.SearchRequest) (logs.SearchResult, error) {
 		select {
 		case requested <- struct{}{}:
 		default:
 		}
-		return datadog.LogsSearchResult{}, &datadog.APIError{StatusCode: 429, RetryAfter: time.Millisecond}
+		return logs.SearchResult{}, &datadog.APIError{StatusCode: 429, RetryAfter: time.Millisecond}
 	}}
-	svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, datadog.SearchSpansRequest) (datadog.SpansSearchResult, error) {
-		return datadog.SpansSearchResult{Spans: []datadog.SpanEntry{{SpanID: "span-1"}}}, nil
+	svc := NewSearchService(fakeSpansClient{searchFn: func(context.Context, SearchRequest) (SearchResult, error) {
+		return SearchResult{Spans: []Entry{{SpanID: "span-1"}}}, nil
 	}}, logs)
 	done := make(chan error, 1)
 	go func() {
-		_, err := svc.Search(ctx, SearchRequest{
+		_, err := svc.Search(ctx, SearchOptions{
 			From: "start", To: "end", Limit: 1,
 			WithLogs: true, LogsFrom: "start", LogsTo: "end", LogsLimit: 1,
 			LogsRateLimitMode: "wait", LogsRateLimitWait: time.Second, LogsRateLimitMaxWaits: 2,

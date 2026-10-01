@@ -8,13 +8,13 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/gabrielmbmb/ddogo/internal/datadog"
+	"github.com/gabrielmbmb/ddogo/internal/errortracking"
 )
 
 const prettyIssueMessageMaxRunes = 120
 
 // RenderIssueSearchResults writes issue search results in pretty or json format.
-func RenderIssueSearchResults(w io.Writer, format string, issues []datadog.IssueSearchResult) error {
+func RenderIssueSearchResults(w io.Writer, format string, issues []errortracking.SearchEntry) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -28,7 +28,7 @@ func RenderIssueSearchResults(w io.Writer, format string, issues []datadog.Issue
 }
 
 // RenderIssue writes a single issue in pretty or json format.
-func RenderIssue(w io.Writer, format string, issue datadog.ErrorTrackingIssue) error {
+func RenderIssue(w io.Writer, format string, issue errortracking.Issue) error {
 	switch format {
 	case "json":
 		enc := json.NewEncoder(w)
@@ -41,7 +41,7 @@ func RenderIssue(w io.Writer, format string, issue datadog.ErrorTrackingIssue) e
 	}
 }
 
-func renderPrettyIssueSearchResults(w io.Writer, issues []datadog.IssueSearchResult) error {
+func renderPrettyIssueSearchResults(w io.Writer, issues []errortracking.SearchEntry) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "LAST_SEEN\tSTATE\tSERVICE\tTOTAL\tUSERS\tSESSIONS\tISSUE_ID\tERROR"); err != nil {
 		return err
@@ -77,7 +77,7 @@ func renderPrettyIssueSearchResults(w io.Writer, issues []datadog.IssueSearchRes
 	return tw.Flush()
 }
 
-func renderPrettyIssue(w io.Writer, issue datadog.ErrorTrackingIssue) error {
+func renderPrettyIssue(w io.Writer, issue errortracking.Issue) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "FIELD\tVALUE"); err != nil {
 		return err
@@ -109,7 +109,7 @@ func renderPrettyIssue(w io.Writer, issue datadog.ErrorTrackingIssue) error {
 	return tw.Flush()
 }
 
-func issueSummary(issue *datadog.ErrorTrackingIssue) string {
+func issueSummary(issue *errortracking.Issue) string {
 	if issue == nil {
 		return ""
 	}
